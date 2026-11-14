@@ -18,12 +18,13 @@ Why a plugin: the sidebar renders the durable workspace order kept by the Host r
 
 ## Install
 
-Install from this local directory (linked into the current profile, not via npm):
+There is no npm package; the only way in is to clone this repository and link the directory into the current profile.
 
 ```bash
-# build first: a link install does not run the build
+git clone https://github.com/he0119/dsh-workspace-recency-order.git
+cd dsh-workspace-recency-order
 pnpm install
-pnpm run build
+pnpm run build      # a link install does not run the build
 ```
 
 Then add the directory with **Settings → Plugins → Add plugin**, or let an agent call the plugin manager's `install_bundle` with this directory. Reload the page afterwards (the client half is loaded fresh).

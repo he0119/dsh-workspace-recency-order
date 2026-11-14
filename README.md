@@ -18,15 +18,16 @@
 
 ## 安装
 
-本仓库是本地目录安装（link 到当前 profile，不经 npm）：
+本插件不发布到 npm，只有一种装法：克隆仓库，把这份目录 link 进当前 profile。
 
 ```bash
-# 先构建产物：link 安装不会帮你跑构建
+git clone https://github.com/he0119/dsh-workspace-recency-order.git
+cd dsh-workspace-recency-order
 pnpm install
-pnpm run build
+pnpm run build      # link 安装不会帮你跑构建，产物得先有
 ```
 
-然后在 DSH 的「设置 → 插件」里用「添加插件」选中本目录，或让 agent 用插件管理器的 `install_bundle` 指向本目录。装完刷新页面（客户端那一半是新加载的模块）。
+然后在 DSH 的「设置 → 插件」里用「添加插件」选中这个目录，或让 agent 用插件管理器的 `install_bundle` 指向它。装完刷新页面（客户端那一半是新加载的模块）。
 
 ## 用法
 
