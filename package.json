@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "DSH 的工作区排序插件：侧边栏工作区列表按「最近用过的会话」排序，并支持把某个工作区固定在最前面。",
   "type": "module",
+  "packageManager": "pnpm@12.18.0",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "icon": "./icon.svg",
@@ -45,11 +46,15 @@
   "scripts": {
     "prebuild": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\"",
     "build": "tsdown --concurrency 1",
+    "build:host": "tsdown --filter @he0119/dsh-workspace-recency-order/host",
+    "build:client": "tsdown --filter @he0119/dsh-workspace-recency-order/client",
+    "build:types": "tsdown --filter @he0119/dsh-workspace-recency-order/types",
     "watch": "tsdown --watch --concurrency 1",
     "typecheck": "tsc -p tsconfig.test.json && tsc -p tsconfig.client.json",
-    "test": "node --test test/order.test.mjs test/options.test.mjs test/client.test.mjs",
+    "test": "node test/run-all.mjs",
+    "test:runner": "node --test",
     "check:package": "node scripts/check-package.mjs",
-    "check": "tsc -p tsconfig.test.json && tsc -p tsconfig.client.json && node --test test/order.test.mjs test/options.test.mjs test/client.test.mjs && node scripts/check-package.mjs"
+    "check": "tsc -p tsconfig.test.json && tsc -p tsconfig.client.json && node test/run-all.mjs"
   },
   "keywords": [
     "dsh",
@@ -58,9 +63,18 @@
     "workspace",
     "sidebar",
     "recency",
+    "activity",
     "pin"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/he0119/dsh-workspace-recency-order.git"
+  },
+  "homepage": "https://github.com/he0119/dsh-workspace-recency-order",
+  "bugs": {
+    "url": "https://github.com/he0119/dsh-workspace-recency-order/issues"
+  },
   "devDependencies": {
     "@types/node": "^22.20.0",
     "@types/react": "^18.3.31",

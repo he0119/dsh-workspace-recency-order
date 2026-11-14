@@ -1,0 +1,14 @@
+# pnpm 自己的设置放这里（pnpm 10 起官方推荐位置），而不是 .npmrc。
+#
+# 本仓库只有一个包，所以这里**没有** `packages:` 段——这个文件只承载设置。
+#
+# 本插件不依赖任何 `@deepseek-ai/*` 包：Host 端只用宿主提供的服务面，客户端产物除了浏览器
+# 模块表里的 `react` / `react/jsx-runtime` 什么都不 require（见 docs/development.md）。因此
+# pnpm 默认的 isolated 依赖布局在这台机器上是够用的，不需要 node-linker 之类的变通。
+#
+# package.json 里的 `packageManager` 让各台机器用同一个 pnpm 主版本；pnpm 12 会顺手把它自己
+# 记进 pnpm-lock.yaml 的 `packageManagerDependencies`（连同各平台二进制的哈希），那是它按
+# 声明的版本自动生成的内容，不要手改。
+#
+# 将来真要引带安装脚本的依赖：pnpm 10+ 默认拦住它们，会打印待放行模板，届时在这里逐条写
+# `onlyBuiltDependencies`，并写清为什么那个依赖必须在安装时跑脚本。
