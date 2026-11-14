@@ -1,0 +1,31 @@
+{
+  // Host 端（Node）的编译工程：node 模块解析、不要 DOM。
+  // 与 dsh-session-manager 的差别只有一处：不开 noUncheckedIndexedAccess。
+  // 本插件的排序循环每一步都用 `position` 索引同一个数组，边界由循环条件决定；
+  // 逐处加 `!` 或空值分支只会淹没真正需要看的类型错误。strict 仍然全开。
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "rootDir": "src",
+    "outDir": "lib",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": false,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  // Web Client 端（src/client）另有工程：它要 DOM 与 React，而这一份两者都没有，
+  // 于是「浏览器 API 出现在 Host 代码里」在类型层面就不成立。
+  "exclude": ["src/client"]
+}

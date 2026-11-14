@@ -1,0 +1,12 @@
+{
+  // 类型检查用的总工程：把源码与构建脚本一起看，不产出任何文件。
+  // 测试是 .mjs（直接跑在 node 上，不进类型检查），脚本同理只查 tsdown.config.ts。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".typecheck",
+    "declaration": false,
+    "noEmit": true
+  },
+  "include": ["src", "tsdown.config.ts"]
+}
