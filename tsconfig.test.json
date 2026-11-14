@@ -1,6 +1,9 @@
 {
-  // 类型检查用的总工程：把源码与构建脚本一起看，不产出任何文件。
-  // 测试是 .mjs（直接跑在 node 上，不进类型检查），脚本同理只查 tsdown.config.ts。
+  // 类型检查用的总工程：源码、测试与构建脚本一起看，不产出任何文件。
+  //
+  // Host 端（tsconfig.json）排除 src/client，Web Client 端另有 tsconfig.client.json；这里从 Host
+  // 那份继承，所以只看得到不含浏览器 API 的那一半——`.test.ts` 正是这一半的测试。要碰 `window`
+  // 的用例（`test/client.test.mjs`、`test/artifact.test.mjs`）是 `.mjs`，不进来。
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
@@ -8,5 +11,5 @@
     "declaration": false,
     "noEmit": true
   },
-  "include": ["src", "tsdown.config.ts"]
+  "include": ["src", "test", "scripts", "tsdown.config.ts"]
 }
