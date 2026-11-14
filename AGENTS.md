@@ -19,7 +19,7 @@
 | `docs/AGENTS.md` | `docs/` 这一层的文档规范与写作规则 |
 | `docs/internals.md` | 决策地图（按主题索引到笔记），以及没有笔记承载的当前机制 |
 | `docs/design.md` | 界面与文案的唯一规格：菜单项、图标、提示语、让位与失败的表现、验收 |
-| `docs/development.md` | 目录结构、逐文件职责、开发命令、怎么装进真实 profile |
+| `docs/development.md` | 目录结构、逐文件职责、开发命令、怎么装进真实 profile、GitHub 上的检查 |
 | `docs/formats.md` | 落盘与跨进程的格式：宿主注册表、`localStorage` 键、配置对象、语言键 |
 | `docs/flows.md` | 从一次活动或一次点击到宿主写盘的流程，失败怎么办 |
 | `docs/glossary.md` | 术语表：官方怎么说、照写什么、别写成什么 |
@@ -92,5 +92,8 @@ pnpm run build && pnpm run check:package   # 产物 + 打包自检
   `slot entry crashed` 或重复注册报错。
 - 改了 `.agents/notes/` 或新增笔记：`pnpm test` 里的 `test/notes.test.ts` 会核路径、头部三行、
   `Status:` 与目录一致、必备章节与相对链接。
+
+GitHub 上的检查（`.github/workflows/ci.yml`）跑的就是这两组命令，顺序是先 build、再
+check:package、最后 test；本地照这个顺序跑一遍，红了就不用等 CI。
 
 没有浏览器控制时，只能做到类型检查、单元测试与产物自检；界面是否出现、图标是否渲染要如实报告为未验证。

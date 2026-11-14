@@ -78,6 +78,21 @@ pnpm run build          # link 安装不会帮你构建，产物得先有
 改完源码之后：Host 侧改动要重启 DSH（宿主进程里跑的是 `lib/index.js`）；只改客户端的话，重新
 `pnpm run build:client` 再刷新页面即可。
 
+## GitHub 上的检查与 Release
+
+仓库放在 GitHub 上，不发布到 npm。四份配置各管一件事：
+
+| 文件 | 干什么 |
+| --- | --- |
+| [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | push 到 `main` 与每个 PR 跑：install → typecheck → build → check:package → test，与本地跑的顺序一致 |
+| [`.github/workflows/autolabeler.yml`](../.github/workflows/autolabeler.yml) | 按 PR 标题（约定式提交）给 PR 补标签 |
+| [`.github/autolabeler.yml`](../.github/autolabeler.yml) | 上面那条规则表：`feat:` → `enhancement`、`fix:` → `bug`、`docs:` → `documentation`，其余维护类 → `chore`，带 `!` 的额外打 `breaking-change` |
+| [`.github/release.yml`](../.github/release.yml) | 手动建 Release 时按标签分节 |
+
+**没有发布流水线**：没有 npm，也没有「推标签就自动发版」。要出 Release 就在 GitHub 上手动建，
+`gh release create v0.1.0 --generate-notes` 会把上次标签以来的改动按 `.github/release.yml` 分好组；
+版本号写在 `package.json` 里，改完记得跟着打标签。
+
 ## 没有浏览器控制时
 
 只能在命令行做到：类型检查、单元测试、产物自检与 `test/artifact.test.mjs` 的加载冒烟。**菜单项有没有
