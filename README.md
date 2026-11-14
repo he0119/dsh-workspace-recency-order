@@ -75,26 +75,14 @@ pnpm run build
 - 每次活动最多触发一次排序；每次移动是一次注册表写入（本机这份约 67 KB 的 JSON），顺序已经正确时不写。
 - 固定状态不进会话日志，换机器、换浏览器、清站点数据后需要重新固定。
 
-## 开发
+## 文档
 
-```bash
-pnpm install
-pnpm run build      # lib/index.js（Host，ESM）+ lib/client.js（Client，classic script）+ lib/types
-pnpm run typecheck  # Host 与 Client 两份 tsconfig 各查一遍
-pnpm run test       # node --test（直接跑 src 里的 TypeScript，Node 24 类型剥离）
-pnpm run check      # 类型检查 + 测试 + 打包自检
-```
+- [docs/design.md](docs/design.md)——菜单项、图标与提示语的完整规格
+- [docs/flows.md](docs/flows.md)——一次活动、一次点击分别走到哪一步
+- [docs/internals.md](docs/internals.md)——宿主的接口面与决策索引
+- [docs/development.md](docs/development.md)——目录结构、构建、测试、装进真实 profile
+- [.agents/notes/](.agents/notes/AGENTS.md)——每条决策的依据与被放弃的做法
 
-目录：
+## 许可证
 
-| 路径 | 作用 |
-| --- | --- |
-| `src/index.ts` | Host 端插件：监听活动事件、按活跃度重排注册表 |
-| `src/order.ts` | 纯排序规则（`orderByActivity` / `nextMove`），测试直接覆盖 |
-| `src/options.ts` | 配置解析与默认值 |
-| `src/types.ts` | Host 侧用到的最小服务面（不 import DSH 包） |
-| `src/client/index.ts` | 客户端：菜单项、固定列表、顺序纠正与让位 |
-| `src/client/types.ts` | 客户端侧用到的最小服务面 |
-| `test/*.test.mjs` | 排序规则、配置解析、客户端固定行为 |
-| `scripts/check-package.mjs` | 打包自检：导出路径、classic script 契约、基线模块、语言资源 |
-| `tsdown.config.ts` | 三份构建：Host、类型声明、客户端 |
+MIT

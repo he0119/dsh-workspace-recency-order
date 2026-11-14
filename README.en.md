@@ -75,24 +75,14 @@ An unknown key or unusable value logs a `warn` on the Host and falls back to the
 - Each activity triggers at most one sort; every move is one registry write (about 67 KB of JSON on this machine). Nothing is written when the order already matches.
 - Pins are not session data: another machine, another browser, or cleared site data starts without them.
 
-## Development
+## Documents
 
-```bash
-pnpm install
-pnpm run build      # lib/index.js (Host, ESM) + lib/client.js (Client, classic script) + lib/types
-pnpm run typecheck  # both tsconfig projects
-pnpm run test       # node --test against the TypeScript sources (Node 24 type stripping)
-pnpm run check      # typecheck + tests + package self-check
-```
+- [docs/design.md](docs/design.md) — the menu item, icon and toast copy, in full
+- [docs/flows.md](docs/flows.md) — what one activity or one click walks through
+- [docs/internals.md](docs/internals.md) — the Host surface this plugin uses, and the decision index
+- [docs/development.md](docs/development.md) — layout, build, tests, installing into a real profile
+- [.agents/notes/](.agents/notes/AGENTS.md) — why each decision was made, and what was rejected
 
-| Path | Role |
-| --- | --- |
-| `src/index.ts` | Host plugin: activity events, registry reordering |
-| `src/order.ts` | Pure ordering rules (`orderByActivity` / `nextMove`) |
-| `src/options.ts` | Config parsing and defaults |
-| `src/types.ts` | Minimal Host service surface (no DSH imports) |
-| `src/client/index.ts` | Client half: menu item, pin list, corrections, yielding |
-| `src/client/types.ts` | Minimal client service surface |
-| `test/*.test.mjs` | Ordering rules, config parsing, client pin behaviour |
-| `scripts/check-package.mjs` | Package self-check: exports, classic-script contract, baseline modules, locales |
-| `tsdown.config.ts` | Three builds: Host, type declarations, client |
+## License
+
+MIT

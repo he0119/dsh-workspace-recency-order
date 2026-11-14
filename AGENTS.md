@@ -1,7 +1,11 @@
 # AGENTS.md
 
 本仓库的协作约定，给 AI 助手与贡献者看。安装与用法在 [README](README.md)，英文版在
-[README.en.md](README.en.md)。文档、提交信息、给维护者的报告一律用中文，术语第一次出现先解释。
+[README.en.md](README.en.md)；决策的依据与被否决的备选方案在 [.agents/notes/](.agents/notes/AGENTS.md)，
+决策地图在 [docs/internals.md](docs/internals.md)，界面与文案规格在 [docs/design.md](docs/design.md)，
+落盘与键名在 [docs/formats.md](docs/formats.md)，各种操作的流程在 [docs/flows.md](docs/flows.md)，
+目录结构与逐文件职责在 [docs/development.md](docs/development.md)。文档、提交信息、给维护者的报告
+一律用中文，术语按 [docs/glossary.md](docs/glossary.md) 的说法，第一次出现先解释。
 
 ## 文档分工
 
@@ -10,8 +14,20 @@
 | 文档 | 写什么 |
 | --- | --- |
 | `README.md` / `README.en.md` | 安装、用法、配置、取舍与限制；两份的键与结构保持对齐 |
-| `AGENTS.md` | 本文件：写码约定、验证清单、界面与接口的硬约束 |
+| `AGENTS.md` | 本文件：协作约定、提交信息口径、硬约束、验证清单 |
+| `.agents/notes/` | 决策的依据、被否决的备选方案与代价；一条决策一篇，格式由 `test/notes.test.ts` 核 |
+| `docs/AGENTS.md` | `docs/` 这一层的文档规范与写作规则 |
+| `docs/internals.md` | 决策地图（按主题索引到笔记），以及没有笔记承载的当前机制 |
+| `docs/design.md` | 界面与文案的唯一规格：菜单项、图标、提示语、让位与失败的表现、验收 |
+| `docs/development.md` | 目录结构、逐文件职责、开发命令、怎么装进真实 profile |
+| `docs/formats.md` | 落盘与跨进程的格式：宿主注册表、`localStorage` 键、配置对象、语言键 |
+| `docs/flows.md` | 从一次活动或一次点击到宿主写盘的流程，失败怎么办 |
+| `docs/glossary.md` | 术语表：官方怎么说、照写什么、别写成什么 |
 | `src/*` 的文件头注释 | 这个文件为什么存在、和宿主哪个接口对应；不重复 README 的用法 |
+
+一次改动**引入了新的决策**（默认值、对外契约、文件格式、工作区里的活动口径、修掉一个有现象可查的
+缺陷）时，与代码同一个提交里写一篇笔记，判据见 [.agents/notes/AGENTS.md](.agents/notes/AGENTS.md)；
+已经有一篇笔记持有该决策就更新它，不新建重复笔记。措辞调整与纯局部实现细节豁免。
 
 ## 提交信息
 
@@ -57,15 +73,24 @@
 改动前后都跑：
 
 ```bash
-pnpm run check        # tsc（两份工程）+ node --test + 打包自检
+pnpm run check        # tsc（两份工程，含 test/ 与 scripts/）+ 进程内 runner 跑全部用例
+```
+
+`check` 不构建，所以 `check:package` 不在里面；要验产物就多跑一步：
+
+```bash
+pnpm run build && pnpm run check:package   # 产物 + 打包自检
 ```
 
 另外按改动范围补：
 
 - 改了构建或导出：`pnpm run build` 后看 `lib/` 三个产物（`index.js`、`client.js`、`types/`），
-  确认 `lib/client.js` 仍以 `window.__ModuleLoader__.load(` 开头、模块 id 等于包名。
+  确认 `lib/client.js` 仍以 `window.__ModuleLoader__.load(` 开头、模块 id 等于包名；
+  `test/artifact.test.mjs` 会按宿主方式加载这两个产物。
 - 改了 Host 排序：用真实 profile 装一次，看侧边栏顺序是否按最近活动变化；顺序已正确时不应写盘。
 - 改了客户端固定：在真实页面上点一次菜单项，确认固定后行停住、取消后放回，并确认控制台没有
   `slot entry crashed` 或重复注册报错。
+- 改了 `.agents/notes/` 或新增笔记：`pnpm test` 里的 `test/notes.test.ts` 会核路径、头部三行、
+  `Status:` 与目录一致、必备章节与相对链接。
 
 没有浏览器控制时，只能做到类型检查、单元测试与产物自检；界面是否出现、图标是否渲染要如实报告为未验证。
