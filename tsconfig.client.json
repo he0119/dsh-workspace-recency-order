@@ -16,5 +16,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/client"]
+  // 客户端产物会打进共享契约（src/protocol.ts），所以它也在这一份工程里。
+  "include": ["src/client", "src/protocol.ts"]
 }

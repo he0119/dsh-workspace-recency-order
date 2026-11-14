@@ -10,15 +10,19 @@
 //
 // 产物不存在时整组跳过：源码开发不必先构建。
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import test from 'node:test'
+import { tmpdir } from 'node:os'
+import test, { after } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const HOST_ENTRY = join(ROOT, 'lib', 'index.js')
+// 产物执行会读/写 $DSH_HOME 下的固定列表；给它一个临时 home，别碰开发机上真的那份。
+const TEST_HOME = mkdtempSync(join(tmpdir(), 'dsh-artifact-home-'))
+process.env.DSH_HOME = TEST_HOME
 const CLIENT_ENTRY = join(ROOT, 'lib', 'client.js')
 const MISSING = existsSync(HOST_ENTRY) && existsSync(CLIENT_ENTRY)
   ? false
@@ -57,17 +61,14 @@ test('Host 产物导出 apply / inject，并在假上下文里跑得起来', { s
   assert.ok(host.listeners.has('api-session/activity'), 'apply 没有注册活动监听')
 })
 
+after(() => { rmSync(TEST_HOME, { recursive: true, force: true }) })
+
 test('客户端产物是经典脚本，模块 id 等于包名，只 require 基线模块', { skip: MISSING }, () => {
   const source = readFileSync(CLIENT_ENTRY, 'utf8')
   assert.ok(source.startsWith('window.__ModuleLoader__.load('), '不是经典脚本契约')
 
   const loaded = []
   const window = {
-    localStorage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    },
     __ModuleLoader__: {
       load: definition => { loaded.push(definition) },
     },

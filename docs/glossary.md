@@ -10,8 +10,8 @@
 | 会话 | session | 会话 | 对话、聊天 | `sessionController` |
 | 活动 / 活跃 | activity | 活动（一次事件）、活跃度（排序依据） | 活跃（当名词用） | 事件 `api-session/activity` |
 | 固定 | —（宿主只有会话级固定） | 固定（动词：固定到最前） | 置顶、钉住 | [design.md](design.md) |
-| 让位 | — | 让位 | 退让、避让、停手（首次出现写全「停止固定 30 秒」） | [flows.md](flows.md) |
-| 快照 | snapshot | 快照 | 状态、数据 | `workspaces.list.getSnapshot()` |
+| 固定组 | — | 固定组（列表开头那一段固定项） | 固定区、置顶区、钉住区 | [design.md](design.md) |
+| 快照 | snapshot | 快照 | 状态、数据 | `GET /api/workspace-recency/pins` 的回答 |
 | 基线模块 | platform baseline modules | 平台基线模块 | 内置模块、核心模块 | [development.md](development.md) |
 | 经典脚本 | classic script | 经典脚本（经典脚本契约） | 普通脚本、非模块 | `window.__ModuleLoader__.load(...)` |
 | 补丁行 | bundle patch | 补丁行（`cordis.patch.yml` 里本插件那一行） | 配置、注册项 | [formats.md](formats.md) |

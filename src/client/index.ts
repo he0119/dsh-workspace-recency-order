@@ -2,34 +2,25 @@
  * 工作区按活跃度排序 —— Web Client 端。
  *
  * 宿主的工作区行只留了「…」菜单这一个扩展位（会话行才有悬停按钮的插槽），所以「固定工作区」
- * 做成菜单里的一项：点一下把这个工作区钉在最前，再点同一项松开。
+ * 做成菜单里的一项：点一下把这个工作区固定，再点同一项松开。
  *
- * 固定列表存在**当前浏览器**里（`localStorage`），顺序的结果写在宿主那份持久顺序上：
- * 宿主按活跃度重排把固定项挤下去之后，这里收到新的快照就把它挪回去。因此固定是「页面在维持」，
- * 页面关掉期间不会有人纠正。多个页面同时固定不同工作区时会抢同一个顺序，所以这里做了节流与让位
- * （见 `CONFLICT_LIMIT` / `YIELD_MS`），不会无限对写。
+ * 顺序只有一个写手：宿主。页面**不碰顺序**，只通过 `/api/workspace-recency/pins` 读写固定列表：
+ * 加载时读一次、点菜单时发一条切换命令、切回窗口时再读一次。固定项因此不会在活动之后被挤下去再
+ * 弹回来，页面关掉期间固定也照样生效。
  */
 import { createElement, type ReactElement } from 'react'
 
+import { createPinnedSet, readPinned, sendPinCommand } from './pins.ts'
 import type {
   ClientContext,
   MenuAction,
   RemoteAccessService,
   WorkspaceMenuTarget,
-  WorkspaceSnapshot,
 } from './types.ts'
 
-export const inject: readonly string[] = ['slots', 'contextMenus', 'workspaces', 'locale']
+export const inject: readonly string[] = ['slots', 'contextMenus', 'locale']
 
 const NS = 'workspace-recency'
-const STORAGE_KEY = 'dsh.workspace-recency.pinned-workspaces.v1'
-/** 两次顺序纠正之间的最小间隔。 */
-const MIN_GAP_MS = 600
-/** 在这个时间窗内纠正这么多次，就认为有别人在同时改顺序。 */
-const CONFLICT_WINDOW_MS = 10_000
-const CONFLICT_LIMIT = 4
-/** 让位多久。 */
-const YIELD_MS = 30_000
 /** 同一个失败最多多久提示一次。 */
 const FAILURE_NOTICE_GAP_MS = 30_000
 
@@ -37,20 +28,16 @@ const DICT: Record<string, Record<string, string>> = {
   zh: {
     pin: '固定工作区到最前',
     unpin: '取消工作区固定',
-    pinnedToast: '已固定：这个工作区会一直排在最前，再点同一项可取消',
+    pinnedToast: '已固定：这个工作区会留在最前那一组，再点同一项可取消',
     unpinnedToast: '已取消固定',
     failed: '调整工作区顺序失败',
-    storageBlocked: '这个浏览器不允许保存设置，固定无法记住',
-    yielding: '检测到另一个页面也在调整工作区顺序，暂时停止固定 30 秒',
   },
   en: {
     pin: 'Keep workspace at top',
     unpin: 'Stop keeping workspace at top',
-    pinnedToast: 'Kept at the top; pick the same item again to release it',
+    pinnedToast: 'Kept in the top group; pick the same item again to release it',
     unpinnedToast: 'No longer kept at the top',
     failed: 'Could not reorder workspaces',
-    storageBlocked: 'This browser refuses stored settings, so the pin cannot be remembered',
-    yielding: 'Another page is reordering workspaces; pausing the pin for 30 seconds',
   },
 }
 
@@ -71,38 +58,13 @@ const tack = (filled: boolean): ReactElement => createElement(
 const PinIcon = (): ReactElement => tack(false)
 const UnpinIcon = (): ReactElement => tack(true)
 
-/**
- * 读取本浏览器里的固定列表（最近固定的在前）。
- * @returns 固定的工作区 id；存储不可用时是空数组。
- */
-const readPins = (): string[] => {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (raw === null) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return [...new Set(parsed.filter((id): id is string => typeof id === 'string'))]
-  } catch {
-    return []
-  }
-}
-
-/**
- * 保存固定列表。
- * @returns 浏览器是否接受这次写入。
- */
-const writePins = (pins: readonly string[]): boolean => {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pins))
-    return true
-  } catch {
-    return false
-  }
-}
+/** 这个错误是不是「页面正在卸载、请求被中止」。 */
+const isAbort = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError'
 
 /**
  * 插件入口。
- * @param ctx - 带插槽、菜单、工作区、语言四个服务的 Client 上下文。
+ * @param ctx - 带插槽、菜单、语言三个服务的 Client 上下文。
  */
 export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
@@ -111,6 +73,14 @@ export function apply(ctx: ClientContext): void {
   const allowed = (workspaceId: string): boolean =>
     remoteAccess?.source?.('workspace', workspaceId, 'workspace/insertBefore')?.getSnapshot?.() !== false
 
+  const pinned = createPinnedSet()
+  /** 页面卸载时中止在途请求；中止的失败不再提示。 */
+  const control = new AbortController()
+  let refreshing: Promise<void> | undefined
+  /** 成功切换一次固定就加一；在它之前发出的读取，回来时不能把新状态盖掉。 */
+  let revision = 0
+  let lastFailureAt = 0
+
   ctx.effect(() => ctx.locale.register(NS, DICT), 'workspace-recency: locale')
 
   ctx.slots.inject('contextMenu.icon', () => [
@@ -118,33 +88,11 @@ export function apply(ctx: ClientContext): void {
     ctx.slots.register({ name: 'contextMenu.icon', key: 'workspace-recency.unpin' }, UnpinIcon),
   ])
 
-  /** 当前快照；服务拿不到时返回 undefined。 */
-  const snapshot = (): WorkspaceSnapshot | undefined => {
-    try {
-      return ctx.workspaces.list.getSnapshot()
-    } catch {
-      return undefined
-    }
-  }
-  /** 基线到齐、没有在加载时，`items` 才代表完整的工作区集合。 */
-  const settled = (value: WorkspaceSnapshot | undefined): value is WorkspaceSnapshot =>
-    value !== undefined && value.phase === 'ready' && value.state === 'idle'
-  const orderOf = (value: WorkspaceSnapshot | undefined): string[] =>
-    (value?.items ?? []).map(row => String(row.workspaceId))
-
-  let busy = false
-  let pending = false
-  let lastRunAt = 0
-  let trailing: ReturnType<typeof setTimeout> | undefined
-  let corrections: number[] = []
-  let pausedUntil = 0
-  let lastFailureAt = 0
-
   const notice = (key: string, success: boolean): void => {
     ctx.contextMenus.notify?.(t(key), success)
   }
 
-  /** 失败最多每 30 秒提示一次，避免一直被拒绝时刷屏。 */
+  /** 失败最多每 30 秒提示一次，避免宿主一直拒绝时刷屏。 */
   const failOnce = (): void => {
     const now = Date.now()
     if (now - lastFailureAt < FAILURE_NOTICE_GAP_MS) return
@@ -153,131 +101,85 @@ export function apply(ctx: ClientContext): void {
   }
 
   /**
-   * 把 `pins` 按固定顺序挪到最前面。
-   * @returns 是否写成功（不需要移动也算成功）。
+   * 重新读宿主那份列表；读不到就保持现状，不打扰用户。同一时刻只有一个请求在飞。
+   * @returns 这一轮读完的承诺。
    */
-  const movePinsToFront = async (pins: readonly string[]): Promise<boolean> => {
-    const value = snapshot()
-    if (!settled(value)) return true
-    const order = orderOf(value)
-    if (order.length === 0) return true
-    const known = pins.filter(id => order.includes(id))
-    if (known.length === 0) return true
-    if (known.every((id, index) => order[index] === id)) return true
-    try {
-      for (let index = known.length - 1; index >= 0; index -= 1) {
-        const live = orderOf(snapshot())
-        if (live.length === 0 || live[0] === known[index]) continue
-        await ctx.workspaces.insertBefore(known[index], live[0])
+  const refresh = (): Promise<void> => {
+    if (refreshing !== undefined) return refreshing
+    const seen = revision
+    refreshing = (async () => {
+      try {
+        const ids = await readPinned(control.signal)
+        // 读取期间有一次切换成功了：那份回答比这次读取新，别拿旧列表盖掉它。
+        if (revision === seen) pinned.set(ids)
+      } catch {
+        // 宿主没有这条路由（插件只装了页面这一半）或者暂时连不上：菜单先按「没固定」显示。
       }
-      return true
-    } catch {
-      return false
-    }
+    })().finally(() => { refreshing = undefined })
+    return refreshing
   }
 
   /**
-   * 宿主重排之后把固定项拉回来。带节流、合并与让位，避免多页面互相顶。
-   */
-  const enforce = async (): Promise<void> => {
-    const now = Date.now()
-    if (now < pausedUntil) return
-    if (busy) {
-      pending = true
-      return
-    }
-    const pins = readPins()
-    if (pins.length === 0) return
-    const value = snapshot()
-    if (!settled(value)) return
-    const order = orderOf(value)
-    if (order.length === 0) return
-    const known = pins.filter(id => order.includes(id))
-    // 只有基线完整时才允许清理：加载中或断线的快照不代表工作区被删了。
-    if (known.length !== pins.length) writePins(known)
-    if (known.length === 0) return
-    if (known.every((id, index) => order[index] === id)) return
-    if (now - lastRunAt < MIN_GAP_MS) {
-      if (trailing !== undefined) clearTimeout(trailing)
-      trailing = setTimeout(() => {
-        trailing = undefined
-        void enforce()
-      }, MIN_GAP_MS)
-      return
-    }
-    lastRunAt = now
-    busy = true
-    let ok = true
-    try {
-      ok = await movePinsToFront(known)
-    } finally {
-      busy = false
-    }
-    if (!ok) {
-      failOnce()
-      return
-    }
-    corrections = [...corrections.filter(at => now - at < CONFLICT_WINDOW_MS), now]
-    if (corrections.length >= CONFLICT_LIMIT) {
-      pausedUntil = now + YIELD_MS
-      corrections = []
-      notice('yielding', false)
-      return
-    }
-    if (pending) {
-      pending = false
-      void enforce()
-    }
-  }
-
-  /**
-   * 切换一个工作区的固定状态：存储与顺序一起成功或一起不变。
+   * 切换一个工作区的固定状态：以宿主的回答为准。
    * @param workspaceId - 目标工作区。
    */
   const togglePin = async (workspaceId: string): Promise<void> => {
-    const pins = readPins()
-    const pinned = pins.includes(workspaceId)
-    if (pinned) {
-      if (!writePins(pins.filter(id => id !== workspaceId))) {
-        notice('storageBlocked', false)
-        return
-      }
-      notice('unpinnedToast', true)
-      void enforce()
-      return
+    const next = !pinned.getSnapshot().has(workspaceId)
+    try {
+      pinned.set(await sendPinCommand({ workspaceId, pinned: next }, control.signal))
+      revision += 1
+      notice(next ? 'pinnedToast' : 'unpinnedToast', true)
+    } catch (error) {
+      if (isAbort(error)) return
+      failOnce()
+      // 宿主可能已经变了（别处改过、连接刚恢复）：重新读一次，别让菜单一直显示旧状态。
+      void refresh()
     }
-    const next = [workspaceId, ...pins]
-    if (!writePins(next)) {
-      notice('storageBlocked', false)
-      return
-    }
-    if (await movePinsToFront(next)) {
-      notice('pinnedToast', true)
-      return
-    }
-    writePins(pins)
-    failOnce()
   }
 
-  ctx.effect(
-    () => ctx.workspaces.list.subscribe(() => { void enforce() }),
-    'workspace-recency: order watch',
-  )
-  void enforce()
+  ctx.effect(() => {
+    void refresh()
+    return () => {}
+  }, 'workspace-recency: initial pins')
+
+  // 另一个页面改了固定、或者连接刚恢复时，切回这个页面能看到最新状态。
+  ctx.effect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
+    const onFocus = (): void => { void refresh() }
+    const onVisibility = (): void => {
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      void refresh()
+    }
+    const onOnline = (): void => { void refresh() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', onVisibility)
+    }
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', onVisibility)
+      }
+    }
+  }, 'workspace-recency: pin refresh')
+
+  ctx.effect(() => () => control.abort(), 'workspace-recency: abort requests')
 
   ctx.effect(() => ctx.contextMenus.register({
     id: 'workspace-recency.pin',
     target: 'workspace',
     order: 50,
-    observe: () => [ctx.workspaces.list, ctx.locale],
+    observe: () => [pinned, ctx.locale],
     resolve: (target: WorkspaceMenuTarget): readonly MenuAction[] => {
       const id = String(target.workspaceId)
       if (!allowed(target.workspaceId)) return []
-      const pinned = readPins().includes(id)
+      const isPinned = pinned.getSnapshot().has(id)
       return [{
         id: 'pin',
-        label: t(pinned ? 'unpin' : 'pin'),
-        icon: { key: pinned ? 'workspace-recency.unpin' : 'workspace-recency.pin' },
+        label: t(isPinned ? 'unpin' : 'pin'),
+        icon: { key: isPinned ? 'workspace-recency.unpin' : 'workspace-recency.pin' },
         run: () => togglePin(id),
       }]
     },

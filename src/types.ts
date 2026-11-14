@@ -36,10 +36,30 @@ export interface SessionController {
   list(request: Record<string, never>, signal: AbortSignal): Promise<{ readonly items: readonly SessionSummary[] }>
 }
 
+/** `ctx.connection.fetch` 用到的部分：注册一条要经过登录校验的 HTTP 路由。 */
+export interface ConnectionService {
+  readonly fetch: {
+    register(route: {
+      /** 完整路径（含 `/api` 前缀）。 */
+      readonly path: string
+      readonly methods: readonly ('GET' | 'HEAD' | 'POST')[]
+      /** 请求体怎么交给处理函数；固定列表很小，缓冲即可。 */
+      readonly requestBody: 'buffered' | 'streaming'
+      readonly fetch: (request: Request) => Promise<Response>
+    }): (() => Promise<void>) | (() => void)
+  }
+}
+
 /** Cordis 日志器面。 */
 export interface Logger {
   info(message: string): void
   warn(message: string): void
+}
+
+/** `ctx.inject` 回调能拿到的可选服务。 */
+export interface OptionalServices {
+  readonly sessionController?: SessionController
+  readonly connection?: ConnectionService
 }
 
 /** Cordis 插件上下文面（只列本插件用到的成员）。 */
@@ -48,8 +68,5 @@ export interface HostContext {
   readonly logger: Logger & ((name?: string) => Logger)
   effect(callback: () => () => void, label?: string): unknown
   on(event: string, listener: (...args: any[]) => void): unknown
-  inject(
-    deps: readonly string[],
-    callback: (ctx: HostContext & { readonly sessionController: SessionController }) => void,
-  ): unknown
+  inject(deps: readonly string[], callback: (ctx: HostContext & OptionalServices) => void): unknown
 }

@@ -17,7 +17,7 @@ Windows 沙箱里，子进程不能通过命名管道捕获输出，于是这条
 测试文件本身是 `.ts`，靠 node 自带的类型擦除运行，同一个文件也进 `tsconfig.test.json` 的类型检查。
 碰浏览器全局的两份保持 `.mjs`：
 
-- `test/client.test.mjs`：它要 `globalThis.window` 与 `localStorage`，而 Host 侧的类型工程没有 DOM。
+- `test/client.test.mjs`：它要 `globalThis.window` / `document` / `fetch`，而 Host 侧的类型工程没有 DOM。
 - `test/artifact.test.mjs`：它要加载构建产物 `lib/client.js`，在浏览器语义下执行。
 
 `pnpm test:runner` 仍然保留 `node --test` 的原生入口，供能起子进程的环境用。
@@ -37,7 +37,6 @@ Windows 沙箱里，子进程不能通过命名管道捕获输出，于是这条
 
 - 测试文件之间不隔离：某个文件在模块顶层抛错会影响同进程的其余文件的执行环境（runner 只保证继续
   往下跑）。因此模块顶层只做「读文件、拼假对象」这类不会失败的事。
-- 全套 19 个用例在同一进程里约 4 秒跑完；其中「别的页面反复顶掉固定时主动让位」占 3.5 秒，它按真实
-  时间推 5 轮让位窗口。
+- 全套用例在同一进程里不到 1 秒跑完；没有按真实时间等窗口的用例，定时器都调到 0。
 - `.mjs` 的两份不进类型检查，这是有意的：它们借浏览器/产物的真实语义，硬塞进 tsconfig 只会逼出一堆
   `as unknown as` 断言。

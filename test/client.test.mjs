@@ -1,41 +1,87 @@
 /**
- * Web Client 端行为测试：菜单项的固定/取消固定、顺序纠正、存储与让位。
+ * Web Client 端行为测试：菜单项的固定/取消固定、固定列表的读写与失败提示。
  *
- * 直接跑源码（Node 24 的类型剥离）；浏览器全局只补 localStorage，UI 只断言注册面。
+ * 直接跑源码（Node 24 的类型剥离）；浏览器全局只补 `window`/`document`/`fetch`，UI 只断言注册面。
+ * `fetch` 用假的：它按一条条切换命令维护「宿主那份列表」，并记下每次请求。
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import { apply, inject } from '../src/client/index.ts'
 
-/** 页面里会被用到的存储。 */
-const storage = new Map()
+/** 等一次微任务/定时器落地。 */
+const tick = () => new Promise(resolve => setTimeout(resolve, 20))
+
+/** 浏览器里会被用到的全局：事件监听、页面地址、可见状态。 */
+const windowListeners = new Map()
+const documentListeners = new Map()
+
 globalThis.window = {
-  localStorage: {
-    getItem: key => (storage.has(key) ? storage.get(key) : null),
-    setItem: (key, value) => { storage.set(key, String(value)) },
-    removeItem: key => { storage.delete(key) },
+  addEventListener: (type, listener) => { windowListeners.set(type, listener) },
+  removeEventListener: (type, listener) => {
+    if (windowListeners.get(type) === listener) windowListeners.delete(type)
   },
 }
 
-const STORAGE_KEY = 'dsh.workspace-recency.pinned-workspaces.v1'
-const tick = () => new Promise(resolve => setTimeout(resolve, 20))
-const pause = ms => new Promise(resolve => setTimeout(resolve, ms))
+globalThis.document = {
+  baseURI: 'http://localhost/',
+  visibilityState: 'visible',
+  addEventListener: (type, listener) => { documentListeners.set(type, listener) },
+  removeEventListener: (type, listener) => {
+    if (documentListeners.get(type) === listener) documentListeners.delete(type)
+  },
+}
+
+const fire = (table, type) => {
+  const listener = table.get(type)
+  if (listener !== undefined) listener()
+}
+
+/** 假的宿主：`pinned` 是它当前那份列表，`known` 是它认识的工作区，`writeFails` 让命令被拒。 */
+const server = { pinned: [], known: [], writeFails: false, calls: [], gate: null }
+
+const json = (value, status = 200) => new Response(JSON.stringify(value), {
+  status,
+  headers: { 'content-type': 'application/json' },
+})
+
+globalThis.fetch = async (url, init = {}) => {
+  const method = init.method ?? 'GET'
+  server.calls.push({ url: String(url), method, body: init.body })
+  if (method === 'GET') {
+    const snapshot = [...server.pinned]
+    if (server.gate !== null) await server.gate
+    return json({ pinned: snapshot })
+  }
+  if (server.writeFails) return new Response('nope', { status: 500 })
+  const command = JSON.parse(init.body)
+  if (command.pinned) {
+    if (server.known.includes(command.workspaceId) && !server.pinned.includes(command.workspaceId)) {
+      server.pinned.push(command.workspaceId)
+    }
+  } else {
+    server.pinned = server.pinned.filter(id => id !== command.workspaceId)
+  }
+  return json({ pinned: server.pinned })
+}
 
 /**
- * 搭一个 Client 上下文：工作区顺序改内存数组，快照变化通知订阅者。
- * @param options - `order` 有序工作区 id、可选 `phase`/`state` 覆盖快照状态。
+ * 搭一个 Client 上下文。
+ * @param options - `pinned` 宿主初始的固定列表；`deny` 让权限面拒绝移动。
  */
-function harness({ order, phase = 'ready', state = 'idle' }) {
-  storage.clear()
-  const listeners = new Set()
+function harness({ pinned = [], deny = false } = {}) {
+  server.pinned = [...pinned]
+  server.known = ['a', 'b', 'c']
+  server.gate = null
+  server.writeFails = false
+  server.calls = []
+  windowListeners.clear()
+  documentListeners.clear()
   const notices = []
   const menu = { current: undefined }
   const icons = []
-  let reject = false
-  const publish = () => { for (const listener of listeners) listener() }
   const ctx = {
-    effect: fn => fn(),
+    effect: callback => callback(),
     locale: { bind: () => key => key, register: () => () => {} },
     slots: {
       inject: (_key, callback) => {
@@ -48,113 +94,134 @@ function harness({ order, phase = 'ready', state = 'idle' }) {
       register: definition => { menu.current = definition; return () => { menu.current = undefined } },
       notify: (text, success) => { notices.push({ text, success }) },
     },
-    workspaces: {
-      list: {
-        getSnapshot: () => ({ items: order.map(id => ({ workspaceId: id })), phase, state }),
-        subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn) },
-      },
-      insertBefore: async (id, before) => {
-        if (reject) throw new Error('refused')
-        const from = order.indexOf(id)
-        const [entry] = order.splice(from, 1)
-        order.splice(before === undefined ? order.length : order.indexOf(before), 0, entry)
-        publish()
-      },
-    },
+    get: name => name === 'remoteAccess'
+      ? { source: () => ({ getSnapshot: () => !deny }) }
+      : undefined,
   }
-  return {
-    ctx, menu, notices, icons, publish, order,
-    setReject: value => { reject = value },
-  }
+  return { ctx, menu, notices, icons }
 }
 
-const pin = (h, workspaceId) => h.menu.current.resolve({ workspaceId }).at(0)
-const readStored = () => JSON.parse(storage.get(STORAGE_KEY) ?? '[]')
+const action = (h, workspaceId) => h.menu.current.resolve({ workspaceId }).at(0)
+const commands = () => server.calls.filter(call => call.method === 'POST').map(call => JSON.parse(call.body))
 
-test('注册面：服务与包名对得上', () => {
-  assert.deepEqual([...inject].sort(), ['contextMenus', 'locale', 'slots', 'workspaces'])
+test('注册面：服务对得上（页面不再直接改顺序，所以不需要 workspaces）', () => {
+  assert.deepEqual([...inject].sort(), ['contextMenus', 'locale', 'slots'])
 })
 
-test('固定把工作区放到最前，取消固定后放回活跃度顺序', async () => {
-  const h = harness({ order: ['a', 'b', 'c'] })
+test('加载时读宿主那份列表，已固定的工作区显示「取消固定」', async () => {
+  const h = harness({ pinned: ['a'] })
   apply(h.ctx)
-  const action = pin(h, 'b')
-  assert.equal(action.label, 'pin')
-  action.run()
   await tick()
-  assert.deepEqual(h.order, ['b', 'a', 'c'])
-  assert.equal(h.notices.at(-1).success, true)
-
-  // 宿主按活跃度重排：固定项被挤下去后立刻被拉回。
-  h.order.splice(0, 3, 'c', 'a', 'b')
-  h.publish()
-  await tick()
-  assert.deepEqual(h.order, ['b', 'c', 'a'])
-
-  const release = pin(h, 'b')
-  assert.equal(release.label, 'unpin')
-  release.run()
-  await tick()
-  h.order.splice(0, 3, 'c', 'a', 'b')
-  h.publish()
-  await tick()
-  assert.deepEqual(h.order, ['c', 'a', 'b'])
+  assert.equal(server.calls[0].method, 'GET')
+  assert.equal(action(h, 'a').label, 'unpin')
+  assert.equal(action(h, 'b').label, 'pin')
 })
 
-test('多个固定项按固定顺序排成前缀，最近固定的在前', async () => {
-  const h = harness({ order: ['a', 'b', 'c'] })
+test('固定：发一条目标状态命令，以后端的回答为准', async () => {
+  const h = harness()
   apply(h.ctx)
-  pin(h, 'a').run()
   await tick()
-  pin(h, 'c').run()
-  await tick()
-  assert.deepEqual(h.order, ['c', 'a', 'b'])
+  assert.equal(action(h, 'b').label, 'pin')
+
+  await action(h, 'b').run()
+  assert.deepEqual(commands(), [{ workspaceId: 'b', pinned: true }])
+  assert.equal(action(h, 'b').label, 'unpin')
+  assert.deepEqual(h.notices.at(-1), { text: 'pinnedToast', success: true })
 })
 
-test('已删除工作区的固定项会被清理（只在快照完整时）', async () => {
-  const pending = harness({ order: ['a', 'b'], phase: 'pending', state: 'loading' })
-  apply(pending.ctx)
-  storage.set(STORAGE_KEY, JSON.stringify(['gone', 'a']))
-  pending.publish()
-  await tick()
-  assert.deepEqual(readStored(), ['gone', 'a'])
-
-  const ready = harness({ order: ['a', 'b'] })
-  apply(ready.ctx)
-  storage.set(STORAGE_KEY, JSON.stringify(['gone', 'a']))
-  ready.publish()
-  await tick()
-  assert.deepEqual(readStored(), ['a'])
-})
-
-test('写入被拒时回滚固定状态，只报一次失败', async () => {
-  const h = harness({ order: ['a', 'b'] })
+test('取消固定：命令带 pinned: false，列表里只剩别的工作区', async () => {
+  const h = harness({ pinned: ['b', 'c'] })
   apply(h.ctx)
-  h.setReject(true)
-  await pin(h, 'b').run()
-  assert.deepEqual(readStored(), [])
+  await tick()
+
+  await action(h, 'b').run()
+  assert.deepEqual(commands(), [{ workspaceId: 'b', pinned: false }])
+  assert.equal(action(h, 'b').label, 'pin')
+  assert.equal(action(h, 'c').label, 'unpin')
+  assert.deepEqual(h.notices.at(-1), { text: 'unpinnedToast', success: true })
+})
+
+test('宿主不认识的 id 不会变成固定，页面以后端的回答为准', async () => {
+  const h = harness()
+  apply(h.ctx)
+  await tick()
+  await action(h, 'ghost').run()
+  assert.deepEqual(commands(), [{ workspaceId: 'ghost', pinned: true }])
+  assert.equal(action(h, 'ghost').label, 'pin')
+})
+
+test('宿主拒绝写入时提示一次失败，并重新读回宿主的列表', async () => {
+  const h = harness({ pinned: ['c'] })
+  apply(h.ctx)
+  await tick()
+  server.writeFails = true
+  const before = server.calls.length
+
+  await action(h, 'b').run()
+  await action(h, 'b').run()
   assert.deepEqual(h.notices.map(notice => notice.text), ['failed'])
-
-  h.setReject(false)
-  await pin(h, 'b').run()
-  assert.deepEqual(readStored(), ['b'])
-  assert.deepEqual(h.order, ['b', 'a'])
+  assert.equal(action(h, 'b').label, 'pin')
+  // 失败后会补一次读取（状态以宿主为准）。
+  assert.ok(server.calls.slice(before).some(call => call.method === 'GET'))
 })
 
-test('别的页面反复顶掉固定时主动让位', async () => {
-  const h = harness({ order: ['a', 'b', 'c'] })
+test('权限面明确拒绝移动时，这一项根本不出现', async () => {
+  const h = harness({ deny: true })
   apply(h.ctx)
-  await pin(h, 'a').run()
-  assert.deepEqual(h.order, ['a', 'b', 'c'])
-  for (let round = 0; round < 5; round += 1) {
-    h.order.splice(h.order.indexOf('b'), 1)
-    h.order.unshift('b')
-    h.publish()
-    await pause(700)
-  }
-  assert.ok(h.notices.some(notice => notice.text === 'yielding'))
-  const settled = [...h.order]
-  h.publish()
   await tick()
-  assert.deepEqual(h.order, settled)
+  assert.deepEqual(h.menu.current.resolve({ workspaceId: 'a' }), [])
+})
+
+test('切回这个页面、或网络恢复时重新读一次', async () => {
+  const h = harness({ pinned: ['a'] })
+  apply(h.ctx)
+  await tick()
+  assert.equal(action(h, 'a').label, 'unpin')
+
+  server.pinned = []
+  fire(windowListeners, 'focus')
+  await tick()
+  assert.equal(action(h, 'a').label, 'pin')
+
+  server.pinned = ['a']
+  fire(documentListeners, 'visibilitychange')
+  await tick()
+  assert.equal(action(h, 'a').label, 'unpin')
+
+  server.pinned = []
+  fire(windowListeners, 'online')
+  await tick()
+  assert.equal(action(h, 'a').label, 'pin')
+})
+
+test('并发触发多次刷新只发一个读请求', async () => {
+  const h = harness({ pinned: ['a'] })
+  apply(h.ctx)
+  await tick()
+  const before = server.calls.filter(call => call.method === 'GET').length
+  fire(windowListeners, 'focus')
+  fire(windowListeners, 'online')
+  fire(documentListeners, 'visibilitychange')
+  await tick()
+  assert.equal(server.calls.filter(call => call.method === 'GET').length, before + 1)
+})
+
+test('读取回来晚于一次成功的切换时，不拿旧列表盖掉新状态', async () => {
+  const h = harness({ pinned: ['a'] })
+  apply(h.ctx)
+  await tick()
+
+  let release
+  server.gate = new Promise(resolve => { release = resolve })
+  fire(windowListeners, 'focus')
+  await Promise.resolve()
+
+  await action(h, 'b').run()
+  assert.equal(action(h, 'b').label, 'unpin')
+
+  release()
+  server.gate = null
+  await tick()
+  assert.equal(action(h, 'b').label, 'unpin')
+  assert.equal(action(h, 'a').label, 'unpin')
 })

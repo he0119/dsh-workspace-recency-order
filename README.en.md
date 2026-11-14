@@ -14,7 +14,7 @@ Keeps the DSH sidebar workspace list ordered by the session you used last: the w
 
 [中文](README.md) | [English](README.en.md)
 
-Why a plugin: the sidebar renders the durable workspace order kept by the Host registry (`workspaceIds`). The browser has no seam for a plugin to sort that list, and the Host offers session-level pinning only, not workspace-level. This plugin maintains that order on the Host and adds the pin switch on the client.
+Why a plugin: the sidebar renders the durable workspace order kept by the Host registry (`workspaceIds`). The browser has no seam for a plugin to sort that list, and the Host offers session-level pinning only, not workspace-level. This plugin maintains that order on the Host; the client half only owns the menu and the pin list's read/write.
 
 ## Install
 
@@ -44,17 +44,17 @@ Then add the directory with **Settings → Plugins → Add plugin**, or let an a
 
 A workspace row's «…» menu (or a right click on the row) gains one item:
 
-- **Keep workspace at top** — pins that workspace in front; several pins are allowed and the most recent pin leads.
-- **Stop keeping workspace at top** — releases it back to activity order.
+- **Keep workspace at top** — puts that workspace in the leading group; several pins are allowed, the group keeps the order you see, and a new pin joins its end.
+- **Stop keeping workspace at top** — releases it straight back to its activity position.
 
 **It is a menu item, not an icon button on the row**: the shipped workspace row exposes only its «…» menu for extensions (session rows are the ones with hover-button slots). Drawing an icon on the row would require replacing the whole sidebar workspace browser, which also drops search, drag ordering, the workspace tree, and every dialog.
 
 Notes on pinning:
 
-- The pin list lives in **this browser** (`localStorage`, key `dsh.workspace-recency.pinned-workspaces.v1`); it does not follow you to another device, and pages of the same browser share it.
-- The pin is **maintained by the open page**: after each activity sort the page moves pinned workspaces back. While the page is closed nothing corrects the order, and the next page load puts them back.
-- Two browsers pinning **different** workspaces fight over the same Host order. After correcting four times within ten seconds the plugin steps aside for 30 seconds and says so once instead of writing forever.
-- A refused write rolls the pin back and reports one failure at most once per 30 seconds; a browser that refuses stored settings is told plainly that the pin cannot be remembered.
+- The order has **exactly one writer: the Host**. Clicking pin only tells the Host which workspaces are pinned (`POST /api/workspace-recency/pins`), and the Host keeps them in front. Pins therefore never get pushed down and bounced back after an activity, and they keep working while the page is closed.
+- The pin list lives on the Host: `<DSH_HOME>/workspace-recency-order/pins.json` (default `~/.dsh/workspace-recency-order/pins.json`). Every browser on this machine sees the same list and re-reads it when you return to the page.
+- Pins only occupy the leading group and never push the workspace you just used further down: activity in another workspace places it below the group, and the group itself does not move.
+- A refused write reports one failure and then trusts the Host's answer; nothing pretends to have worked.
 
 ## Configuration
 
@@ -71,10 +71,10 @@ An unknown key or unusable value logs a `warn` on the Host and falls back to the
 
 ## Trade-offs and limits
 
-- Ordering rewrites the **durable Host order**: a position you drag by hand is overwritten by the next message or a restart. Turn the plugin off in **Settings → Plugins** to keep manual control.
+- Ordering rewrites the **durable Host order**: a position you drag by hand is overwritten by the next message or a restart — except inside the pinned group, which keeps the order you dragged. Turn the plugin off in **Settings → Plugins** to keep manual control.
 - Only the default **Group by workspace** view is covered; in **Workspace tree** a child workspace stays nested under its parent, so a pinned child leads only among its siblings.
 - Each activity triggers at most one sort; every move is one registry write (about 67 KB of JSON on this machine). Nothing is written when the order already matches.
-- Pins are not session data: another machine, another browser, or cleared site data starts without them.
+- The pin list is not session data: it lives in the `pins.json` above, follows this machine's `DSH_HOME`, and deleting that file clears every pin.
 
 ## Documents
 

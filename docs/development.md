@@ -7,14 +7,24 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `src/index.ts` | Host 端插件：监听活动事件、按活跃度重排注册表、启动种子 |
+| `src/index.ts` | Host 接线：活动事件、启动种子、排序队列、注册固定列表路由 |
+| `src/protocol.ts` | 两端共用的契约：路由路径、命令与响应形状、解析函数 |
 | `src/order.ts` | 纯排序规则（`orderByActivity` / `nextMove`），不碰任何服务 |
+| `src/pins.ts` | `PinStore`：固定列表的内存状态、读盘、过滤、幂等切换、原子写 |
+| `src/route.ts` | 固定列表的 HTTP 处理函数（不依赖 Cordis，测试直接调） |
 | `src/options.ts` | 配置解析与默认值 |
 | `src/types.ts` | Host 侧用到的最小服务面（不 import DSH 包） |
-| `src/client/index.ts` | Web Client 端：菜单项、固定列表、顺序纠正与让位 |
+| `src/client/index.ts` | Web Client 接线：菜单项、提示、刷新时机 |
+| `src/client/pins.ts` | 页面侧固定列表：读、发命令、可订阅快照 |
 | `src/client/types.ts` | 客户端侧用到的最小服务面 |
-| `test/*.test.ts` | 排序规则、配置解析、决策笔记格式（进类型检查） |
-| `test/client.test.mjs` | 客户端固定行为：菜单项、存储、让位（要浏览器全局） |
+| `test/order.test.ts` | 纯排序规则 |
+| `test/protocol.test.ts` | 共享契约的解析与坏输入 |
+| `test/pins.test.ts` | `PinStore`：路径、读盘、过滤、切换、落盘失败 |
+| `test/route.test.ts` | 路由：读、写、幂等、400/405/503 |
+| `test/host.test.ts` | Host 接线：活动排序、启动种子、路由注册、固定与活动的相互作用 |
+| `test/options.test.ts` | 配置解析 |
+| `test/notes.test.ts` | 决策笔记格式（进类型检查） |
+| `test/client.test.mjs` | 页面侧：菜单项、命令、失败提示与刷新（要浏览器全局） |
 | `test/artifact.test.mjs` | 构建产物冒烟：经典脚本契约、基线模块、Host 导出面 |
 | `test/run-all.mjs` | 进程内测试 runner（原因见[笔记](../.agents/notes/implemented/testing/2026-11-14-tests-run-in-one-process.md)） |
 | `scripts/check-package.mjs` | 打包自检：导出路径、classic script 契约、基线模块、语言资源、`files` |
