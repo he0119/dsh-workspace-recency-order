@@ -16,7 +16,7 @@ Status: implemented
 ## Decision
 
 置顶列表归宿主：存在 `<DSH_HOME>/workspace-recency-order/pins.json`，排序时把置顶项整体放在开头
-（`orderByActivity()` 的 `pinned` 参数），其余工作区按活跃度排在后面。
+（`orderByActivity()` 的 `pinned` 参数），置顶组内部与其余工作区都按活跃度排。
 
 页面不再碰顺序。它只在三个时刻读写列表：加载时读一次、点菜单时发一条切换命令、切回窗口时再读一次。
 读写走宿主 `ctx.connection.fetch.register()` 注册的认证路由 `GET/POST /api/workspace-recency/pins`，
@@ -50,6 +50,6 @@ Status: implemented
   各管各的。
 - 页面关掉期间置顶照样生效；删掉 `pins.json` 就回到没有置顶，宿主下次启动读到空列表。
 - 宿主读完 `pins.json` 才开始按活跃度排序，所以启动后第一轮排序会晚一个文件读取的时间。
-- 置顶组内的顺序跟着列表当前的样子走：新置顶的进组尾，组内拖动有效；想让某一行离开组，得取消置顶。
+- 置顶组内部也按最近活动排：在置顶工作区里发消息会把它顶到组内最前；想让某一行离开组，得取消置顶。
 - 没有 `connection` 服务的宿主（非 Web GUI）注册不了路由，页面那一半也不会加载：置顶只在 Web GUI
   里有意义。

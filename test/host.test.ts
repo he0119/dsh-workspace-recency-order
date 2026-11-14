@@ -289,6 +289,38 @@ test('置顶第二个工作区时，已经置顶的那个不动', async () => {
   assert.deepEqual(host.moves.slice(before), [['d', 'b']])
 })
 
+test('置顶组内部也按最近消息排：在置顶工作区里发消息会把它顶到组内最前', async () => {
+  const host = harness({
+    workspaces: [
+      { id: 'a', sessionIds: ['sa'] },
+      { id: 'b', sessionIds: ['sb'] },
+      { id: 'c', sessionIds: ['sc'] },
+    ],
+  })
+  apply(host.ctx, { debounceMs: 0, sortOnStart: false })
+  await tick()
+
+  // 没有活动记录时，两个置顶项按当前先后排成 a b。
+  await callRoute(host, 'POST', { workspaceId: 'a', pinned: true })
+  await callRoute(host, 'POST', { workspaceId: 'b', pinned: true })
+  assert.deepEqual(ids(host), ['a', 'b', 'c'])
+
+  // 在 b 里发消息：b 顶到组内最前，a 让一位。
+  listener(host, 'api-session/activity')('sb', 1000)
+  await tick()
+  assert.deepEqual(ids(host), ['b', 'a', 'c'])
+
+  // 在 a 里发更新的消息：a 回到组内最前。
+  listener(host, 'api-session/activity')('sa', 2000)
+  await tick()
+  assert.deepEqual(ids(host), ['a', 'b', 'c'])
+
+  // 未置顶的 c 有更新的消息，也越不过置顶组。
+  listener(host, 'api-session/activity')('sc', 3000)
+  await tick()
+  assert.deepEqual(ids(host), ['a', 'b', 'c'])
+})
+
 test('置顶列表里宿主没有的 id 会被丢掉', async () => {
   const host = harness({
     workspaces: [

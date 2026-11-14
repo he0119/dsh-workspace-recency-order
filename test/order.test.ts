@@ -15,22 +15,20 @@ test('新的在前，相同排名保持传入顺序', () => {
   assert.deepEqual(orderByActivity(workspaces, () => 0), ['a', 'b', 'c'])
 })
 
-test('置顶项整体在开头，它们之间保持传入顺序、不按活跃度重排', () => {
+test('置顶项整体在开头，组内也按活跃度排', () => {
   const workspaces = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
   const ranks: Record<string, number> = { a: 10, b: 90, c: 50, d: 70 }
-  assert.deepEqual(
-    orderByActivity(workspaces, workspace => ranks[workspace.id], ['b', 'd']),
-    ['b', 'd', 'c', 'a'],
-  )
-  assert.deepEqual(
-    orderByActivity(workspaces, workspace => ranks[workspace.id], ['d']),
-    ['d', 'b', 'c', 'a'],
-  )
+  const rank = (workspace: { id: string }): number => ranks[workspace.id]
+  // 置顶 a、c：组内 c(50) 在 a(10) 前；剩下的按活跃度 b(90)、d(70)。
+  assert.deepEqual(orderByActivity(workspaces, rank, ['a', 'c']), ['c', 'a', 'b', 'd'])
+  assert.deepEqual(orderByActivity(workspaces, rank, ['d']), ['d', 'b', 'c', 'a'])
   // 不在注册表里的 id 不影响结果。
-  assert.deepEqual(
-    orderByActivity(workspaces, workspace => ranks[workspace.id], ['ghost']),
-    ['b', 'd', 'c', 'a'],
-  )
+  assert.deepEqual(orderByActivity(workspaces, rank, ['ghost']), ['b', 'd', 'c', 'a'])
+})
+
+test('排名都是 0 时，置顶项之间保持传入顺序', () => {
+  const workspaces = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  assert.deepEqual(orderByActivity(workspaces, () => 0, ['b', 'a']), ['a', 'b', 'c'])
 })
 
 test('nextMove 指出第一处错位，已有序时是 null', () => {

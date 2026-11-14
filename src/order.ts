@@ -8,8 +8,8 @@ export interface RankedWorkspace {
 }
 
 /**
- * 按活跃时间排名，新的在前；排名相同保持传入顺序。置顶的工作区不参与排名，整体排在开头，
- * 它们之间保持传入顺序。
+ * 按活跃时间排名，新的在前；置顶的工作区整体排在开头，组内同样按活跃时间排。
+ * 排名相同（含都是 0）时保持传入顺序。
  * @param workspaces - 当前注册表顺序。
  * @param rankOf - 每个工作区的活跃时间（epoch 毫秒），没有活动给 0。
  * @param pinned - 置顶的工作区 id；不在注册表里或重复的忽略。
@@ -21,17 +21,18 @@ export function orderByActivity<T extends RankedWorkspace>(
   pinned: Iterable<string> = [],
 ): string[] {
   const fixed = new Set(pinned)
-  const head: string[] = []
-  const tail: { id: string; index: number; latest: number }[] = []
-  for (const [index, workspace] of workspaces.entries()) {
-    if (fixed.has(workspace.id)) {
-      head.push(workspace.id)
-      continue
-    }
-    tail.push({ id: workspace.id, index, latest: rankOf(workspace) })
-  }
-  tail.sort((left, right) => (right.latest - left.latest) || (left.index - right.index))
-  return [...head, ...tail.map(entry => entry.id)]
+  return workspaces
+    .map((workspace, index) => ({
+      id: workspace.id,
+      index,
+      latest: rankOf(workspace),
+      pinned: fixed.has(workspace.id),
+    }))
+    .sort((left, right) =>
+      (Number(right.pinned) - Number(left.pinned))
+      || (right.latest - left.latest)
+      || (left.index - right.index))
+    .map(entry => entry.id)
 }
 
 /**

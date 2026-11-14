@@ -44,7 +44,7 @@ Then add the directory with **Settings → Plugins → Add plugin**, or let an a
 
 A workspace row's «…» menu (or a right click on the row) gains one item:
 
-- **Pin** — puts that workspace in the leading group; several pins are allowed, the group keeps the order you see, and a new pin joins its end.
+- **Pin** — puts that workspace in the leading group; several pins are allowed, and the group itself is ordered by recent messages too, so the pinned workspace you used last leads it.
 - **Unpin** — releases it straight back to its activity position.
 
 **It is a menu item, not an icon button on the row**: the shipped workspace row exposes only its «…» menu for extensions (session rows are the ones with hover-button slots). Drawing an icon on the row would require replacing the whole sidebar workspace browser, which also drops search, drag ordering, the workspace tree, and every dialog.
@@ -71,7 +71,7 @@ An unknown key or unusable value logs a `warn` on the Host and falls back to the
 
 ## Trade-offs and limits
 
-- Ordering rewrites the **durable Host order**: a position you drag by hand is overwritten by the next message or a restart — except inside the pinned group, which keeps the order you dragged. Turn the plugin off in **Settings → Plugins** to keep manual control.
+- Ordering rewrites the **durable Host order**: a position you drag by hand is overwritten by the next message or a restart, including inside the pinned group (which is ordered by recent messages). Turn the plugin off in **Settings → Plugins** to keep manual control.
 - Only the default **Group by workspace** view is covered; in **Workspace tree** a child workspace stays nested under its parent, so a pinned child leads only among its siblings.
 - Each activity triggers at most one sort; every move is one registry write (about 67 KB of JSON on this machine). Nothing is written when the order already matches.
 - The pin list is not session data: it lives in the `pins.json` above, follows this machine's `DSH_HOME`, and deleting that file clears every pin.
