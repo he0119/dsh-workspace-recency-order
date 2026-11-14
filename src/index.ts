@@ -2,11 +2,11 @@
  * 工作区按活跃度排序 —— Host 端。
  *
  * 侧边栏渲染的是宿主里那份持久的工作区顺序（注册表的 `workspaceIds`），本插件维护的就是那份顺序：
- * 固定的工作区占开头一段，其余按最近活动排序。活动＝宿主事件 `api-session/activity`（只在你发出
+ * 置顶的工作区占开头一段，其余按最近活动排序。活动＝宿主事件 `api-session/activity`（只在你发出
  * 人类消息时触发）与会话的创建时间。
  *
  * 顺序只有一个写手，就是这个文件。Web Client 不碰顺序，只通过 `GET/POST /api/workspace-recency/pins`
- * 读写固定列表；固定项因此不会在活动之后被挤下去、再被页面弹回来。
+ * 读写置顶列表；置顶项因此不会在活动之后被挤下去、再被页面弹回来。
  *
  * 写盘方式是最小步：每一轮排序都重新读注册表，只做一次「把某个工作区移到某处」的移动，于是并发改动
  * （用户拖动、别的工作区新建会话）不会让本地快照越走越偏。
@@ -20,7 +20,7 @@ import { PIN_ROUTE } from './protocol.ts'
 import { createPinRoute } from './route.ts'
 import type { HostContext, SessionSummary, WorkspaceRow } from './types.ts'
 
-/** 只强依赖工作区注册表；会话控制器用于启动排序，连接服务用于固定列表的路由。 */
+/** 只强依赖工作区注册表；会话控制器用于启动排序，连接服务用于置顶列表的路由。 */
 export const inject: readonly string[] = ['workspaceRegistry']
 
 /**
@@ -45,7 +45,7 @@ export function apply(ctx: HostContext, config?: unknown): void {
   let timer: ReturnType<typeof setTimeout> | undefined
   let stopped = false
 
-  /** 所有写顺序的操作串行执行：活动触发的排序与切换固定触发的排序不会互相覆盖。 */
+  /** 所有写顺序的操作串行执行：活动触发的排序与切换置顶触发的排序不会互相覆盖。 */
   let queue: Promise<void> = Promise.resolve()
   const serial = <T>(task: () => Promise<T>): Promise<T> => {
     const result = queue.then(task, task)
@@ -53,7 +53,7 @@ export function apply(ctx: HostContext, config?: unknown): void {
     return result
   }
 
-  /** 固定列表：内存里一份，落盘在 `<DSH_HOME>/workspace-recency-order/pins.json`。 */
+  /** 置顶列表：内存里一份，落盘在 `<DSH_HOME>/workspace-recency-order/pins.json`。 */
   const pins = new PinStore({
     file: pinsPath(process.env, homedir()),
     knownIds: () => new Set(registry.list().map(workspace => workspace.id)),
@@ -97,7 +97,7 @@ export function apply(ctx: HostContext, config?: unknown): void {
   const countsAsActivity = (summary: SessionSummary | undefined): summary is SessionSummary =>
     summary !== undefined && summary.origin !== 'subagent'
 
-  /** 按活跃度重排注册表，一步一次持久化移动；固定项始终是开头那一段。 */
+  /** 按活跃度重排注册表，一步一次持久化移动；置顶项始终是开头那一段。 */
   const sortNow = async (): Promise<void> => {
     if (stopped) return
     await pins.load()
@@ -138,7 +138,7 @@ export function apply(ctx: HostContext, config?: unknown): void {
 
   const route = createPinRoute({
     store: pins,
-    // 固定已经落盘了；重排失败只记日志，不要把「固定成功」变成一次 400。
+    // 置顶已经落盘了；重排失败只记日志，不要把「置顶成功」变成一次 400。
     changed: async () => {
       try {
         await sort()
@@ -209,7 +209,7 @@ export function apply(ctx: HostContext, config?: unknown): void {
       })()
     })
   } else {
-    // 不按活跃度整理启动顺序时，固定项仍然要回到开头；没有活动记录时只有固定项会动。
+    // 不按活跃度整理启动顺序时，置顶项仍然要回到开头；没有活动记录时只有置顶项会动。
     void sort().catch((error: unknown) => warn(`startup pin sort skipped: ${String(error)}`))
   }
 

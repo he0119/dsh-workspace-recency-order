@@ -40,12 +40,12 @@ Then add the directory with **Settings → Plugins → Add plugin**, or let an a
 
 **What counts as activity**: human messages in a session (Host event `api-session/activity`, only for `source.kind === 'user'`), plus a session's creation time. Subagent sessions never count; archived sessions' historical time never counts (otherwise the top workspace could show no recent session at all); sessions outside every workspace (ungrouped) never reorder anything.
 
-### Keeping a workspace at the top
+### Pinning a workspace
 
 A workspace row's «…» menu (or a right click on the row) gains one item:
 
-- **Keep workspace at top** — puts that workspace in the leading group; several pins are allowed, the group keeps the order you see, and a new pin joins its end.
-- **Stop keeping workspace at top** — releases it straight back to its activity position.
+- **Pin** — puts that workspace in the leading group; several pins are allowed, the group keeps the order you see, and a new pin joins its end.
+- **Unpin** — releases it straight back to its activity position.
 
 **It is a menu item, not an icon button on the row**: the shipped workspace row exposes only its «…» menu for extensions (session rows are the ones with hover-button slots). Drawing an icon on the row would require replacing the whole sidebar workspace browser, which also drops search, drag ordering, the workspace tree, and every dialog.
 

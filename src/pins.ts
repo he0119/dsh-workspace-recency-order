@@ -1,8 +1,8 @@
 /**
- * 固定列表的宿主侧状态：内存里一份有序 id，落盘到 `$DSH_HOME` 下的一个 JSON 文件。
+ * 置顶列表的宿主侧状态：内存里一份有序 id，落盘到 `$DSH_HOME` 下的一个 JSON 文件。
  *
- * 固定列表归宿主：谁固定了哪些工作区是这份部署的状态，不是某个标签页的临时状态。写盘用「临时文件 +
- * 改名」，读不懂的文件一律当空列表——固定不该因为一个坏文件把插件拖垮。
+ * 置顶列表归宿主：谁置顶了哪些工作区是这份部署的状态，不是某个标签页的临时状态。写盘用「临时文件 +
+ * 改名」，读不懂的文件一律当空列表——置顶不该因为一个坏文件把插件拖垮。
  */
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -14,7 +14,7 @@ export const PINS_VERSION = 1
 export const PINS_FILE = 'pins.json'
 
 /**
- * 固定列表的路径：`<DSH_HOME>/workspace-recency-order/pins.json`。
+ * 置顶列表的路径：`<DSH_HOME>/workspace-recency-order/pins.json`。
  * @param env - 进程环境；读 `DSH_HOME`，空白值当没设。
  * @param home - 操作系统主目录，只在没有 `DSH_HOME` 时用到。
  * @returns 绝对路径（目录不一定存在）。
@@ -31,7 +31,7 @@ const sameIds = (left: readonly string[], right: readonly string[]): boolean =>
 
 /** `PinStore` 需要的宿主事实。 */
 export interface PinStoreOptions {
-  /** 固定列表文件的位置。 */
+  /** 置顶列表文件的位置。 */
   readonly file: string
   /** 注册表里还有的工作区 id；读盘与每次写入时用它丢掉失效项。 */
   readonly knownIds: () => ReadonlySet<string>
@@ -40,7 +40,7 @@ export interface PinStoreOptions {
 }
 
 /**
- * 固定列表的内存状态与落盘。
+ * 置顶列表的内存状态与落盘。
  *
  * 所有方法都可以并发调用：`load()` 只读一次盘，`toggle()` 串行地改内存再落盘（调用方还要保证
  * 顺序写操作串行，见 `src/index.ts` 的 `serial()`）。
@@ -60,12 +60,12 @@ export class PinStore {
     this.#options = options
   }
 
-  /** 固定列表文件的位置。 */
+  /** 置顶列表文件的位置。 */
   get file(): string {
     return this.#options.file
   }
 
-  /** 当前固定列表；读完盘之前是空数组。 */
+  /** 当前置顶列表；读完盘之前是空数组。 */
   get ids(): readonly string[] {
     return this.#ids
   }
@@ -80,10 +80,10 @@ export class PinStore {
   }
 
   /**
-   * 把某个工作区设成固定或取消固定。同一条命令重复发送没有副作用；没有变化时不写盘。
+   * 把某个工作区设成置顶或取消置顶。同一条命令重复发送没有副作用；没有变化时不写盘。
    * @param workspaceId - 目标工作区。
    * @param pinned - 目标状态。
-   * @returns 变化后的固定列表。
+   * @returns 变化后的置顶列表。
    */
   toggle(workspaceId: string, pinned: boolean): Promise<readonly string[]> {
     const result = this.#mutating.then(async () => {

@@ -1,5 +1,5 @@
 /**
- * 固定列表的 HTTP 路由：`GET` 读，`POST` 切换一个工作区。
+ * 置顶列表的 HTTP 路由：`GET` 读，`POST` 切换一个工作区。
  *
  * 处理函数与 Cordis 无关：它只依赖 `PinStore` 和一个「列表变了」的回调，所以测试可以直接拿
  * `Request` 调它，不用起宿主。鉴权、Host/Origin 检查、请求体上限由宿主在把请求交给它之前做完。
@@ -9,7 +9,7 @@ import type { PinStore } from './pins.ts'
 
 /** `createPinRoute()` 需要的外部动作。 */
 export interface PinRouteOptions {
-  /** 固定列表的状态与落盘。 */
+  /** 置顶列表的状态与落盘。 */
   readonly store: PinStore
   /** 列表真的变了之后要做的事（重排顺序）；抛错由调用方记日志。 */
   readonly changed: () => Promise<void>
@@ -34,7 +34,7 @@ const changedIds = (before: readonly string[], after: readonly string[]): boolea
 
 /**
  * 生成路由处理函数。
- * @param options - 固定列表、变化回调与卸载状态。
+ * @param options - 置顶列表、变化回调与卸载状态。
  * @returns 一个可以直接注册给连接服务的 Fetch 处理函数。
  */
 export const createPinRoute = (options: PinRouteOptions) =>

@@ -8,11 +8,11 @@ export interface RankedWorkspace {
 }
 
 /**
- * 按活跃时间排名，新的在前；排名相同保持传入顺序。固定的工作区不参与排名，整体排在开头，
+ * 按活跃时间排名，新的在前；排名相同保持传入顺序。置顶的工作区不参与排名，整体排在开头，
  * 它们之间保持传入顺序。
  * @param workspaces - 当前注册表顺序。
  * @param rankOf - 每个工作区的活跃时间（epoch 毫秒），没有活动给 0。
- * @param pinned - 固定的工作区 id；不在注册表里或重复的忽略。
+ * @param pinned - 置顶的工作区 id；不在注册表里或重复的忽略。
  * @returns 目标顺序里的工作区 id。
  */
 export function orderByActivity<T extends RankedWorkspace>(

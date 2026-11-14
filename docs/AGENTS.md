@@ -5,9 +5,9 @@
 | 文档 | 写什么 | 不写什么 |
 | --- | --- | --- |
 | [internals.md](internals.md) | 决策地图（按主题索引到[决策笔记](../.agents/notes/AGENTS.md)）、没有笔记承载的机制 | 决策依据与被否决的备选方案（→ 笔记） |
-| [design.md](design.md) | 界面与文案的完整规格：菜单项、图标、提示语、固定组与失败的表现、验收 | 决策依据（→ 笔记）；逐文件职责（→ development.md） |
+| [design.md](design.md) | 界面与文案的完整规格：菜单项、图标、提示语、置顶组与失败的表现、验收 | 决策依据（→ 笔记）；逐文件职责（→ development.md） |
 | [development.md](development.md) | 目录结构、逐文件职责、开发命令、怎么装进真实 profile、GitHub 上的检查 | 会与 `package.json` 脚本漂移的逐条清单 |
-| [formats.md](formats.md) | 落盘与跨进程的格式：宿主工作区注册表、固定列表文件与它的 HTTP 路由、配置对象、语言键 | 决策依据（→ 笔记）；界面规格（→ design.md） |
+| [formats.md](formats.md) | 落盘与跨进程的格式：宿主工作区注册表、置顶列表文件与它的 HTTP 路由、配置对象、语言键 | 决策依据（→ 笔记）；界面规格（→ design.md） |
 | [flows.md](flows.md) | 从一次活动或一次点击到宿主写盘的流程：读写哪些状态、失败怎么办 | 字段形状（→ formats.md）；决策依据（→ 笔记） |
 | [glossary.md](glossary.md) | 术语：官方怎么说的、本仓库怎么写、别写成什么 | 机制说明（→ internals.md） |
 | 根 [AGENTS.md](../AGENTS.md) | 协作约定、硬约束、提交信息口径、验证清单 | 故事、完整例子、能从链到的家读到的内容 |

@@ -1,7 +1,7 @@
 # 内部机制（决策地图）
 
-一句话模型：**Host 端按宿主事件算出顺序、写进工作区注册表；固定列表也存在 Host，页面只在菜单里
-读写它。** 顺序只有一个写手，所以固定项不会在活动之后被挤下去再弹回来。这一份文档按主题索引决策，
+一句话模型：**Host 端按宿主事件算出顺序、写进工作区注册表；置顶列表也存在 Host，页面只在菜单里
+读写它。** 顺序只有一个写手，所以置顶项不会在活动之后被挤下去再弹回来。这一份文档按主题索引决策，
 并写下没有笔记承载的那部分机制。
 
 ## 决策地图
@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 顺序写在哪 | 宿主工作区注册表（`insertBefore`），不是浏览器渲染 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-order-is-the-hosts-workspace-registry.md) |
 | 什么算活动 | 人类消息 + 新会话；子智能体、已归档、未分组不算 | [笔记](../.agents/notes/implemented/feature/2026-11-14-only-human-messages-move-a-workspace.md) |
-| 固定列表存哪、谁来纠正 | 宿主（`pins.json` + 认证路由 + 幂等命令），页面只读写、不挪顺序 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-pins-live-in-the-host.md) |
+| 置顶列表存哪、谁来纠正 | 宿主（`pins.json` + 认证路由 + 幂等命令），页面只读写、不挪顺序 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-pins-live-in-the-host.md) |
 | 客户端产物形状 | 经典脚本，只 require `react` 基线 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-client-artifact-is-a-classic-script.md) |
 | 测试怎么跑 | 进程内 runner，`.test.ts` 进类型检查 | [笔记](../.agents/notes/implemented/testing/2026-11-14-tests-run-in-one-process.md) |
 
@@ -28,7 +28,7 @@
 - 事件 `api-session/activity`：只在人类消息时触发，参数是 `(sessionId, updatedAt)`。
 - 事件 `api-session/added`：新会话，参数是会话摘要。
 - `inject(['sessionController'])`：可选；`list()` 返回全部会话摘要，`signal` 用来中途放弃。
-- `inject(['connection'])`：可选；`connection.fetch.register()` 注册固定列表的 `GET`/`POST` 路由，
+- `inject(['connection'])`：可选；`connection.fetch.register()` 注册置顶列表的 `GET`/`POST` 路由，
   宿主负责登录校验、Host/Origin 检查与请求体读取方式。
 
 **Client 侧**（`src/client/index.ts`）：
@@ -42,23 +42,23 @@
 
 ## 没有笔记承载的机制
 
-**固定项是排序的前缀。** `orderByActivity()` 的第三个参数是固定 id 集合：这些工作区先按它们当前
-在注册表里的相对顺序排成开头一段，其余工作区再按活跃时间排。于是「新固定的进组尾、组内保持你拖出来
-的样子」不是额外规则，而是这个排序的副作用；宿主也不会为了维持固定去挪组内的行。
+**置顶项是排序的前缀。** `orderByActivity()` 的第三个参数是置顶 id 集合：这些工作区先按它们当前
+在注册表里的相对顺序排成开头一段，其余工作区再按活跃时间排。于是「新置顶的进组尾、组内保持你拖出来
+的样子」不是额外规则，而是这个排序的副作用；宿主也不会为了维持置顶去挪组内的行。
 
 **单步移动。** `nextMove()` 只指出第一处错位，`sortNow()` 一次只发一个 `insertBefore`，然后重新读。
 代价是 N 个工作区最坏要 N 次写，换来的是「每一步都基于刚读到的真实顺序」——并发的拖动、别的页面的
-固定都不会被本地快照覆盖。这条是
+置顶都不会被本地快照覆盖。这条是
 [顺序改的是宿主注册表](../.agents/notes/implemented/architecture/2026-11-14-order-is-the-hosts-workspace-registry.md)
 的推论，没有单独的笔记。
 
-**队列与去抖。** 所有写顺序的操作（活动触发的排序、切换固定触发的排序）都走同一条 `serial()` 队列，
+**队列与去抖。** 所有写顺序的操作（活动触发的排序、切换置顶触发的排序）都走同一条 `serial()` 队列，
 `schedule()` 再用 `debounceMs` 合并连续事件——前一轮没写完就不开下一轮。定时器 `unref()`，插件挂着
 的待跑任务不会拖住宿主退出。
 
-**固定列表的读写时机。** 页面加载、切回窗口、网络恢复时读；点菜单时发一条幂等的切换命令
+**置顶列表的读写时机。** 页面加载、切回窗口、网络恢复时读；点菜单时发一条幂等的切换命令
 （`{ workspaceId, pinned }`），由宿主算新列表再回答。同一时刻只有一个读请求在飞，页面卸载时中止在途
-请求；读失败不提示（菜单先按「没固定」显示），写失败 30 秒内只提示一次并补读一次。这条的界面表现
+请求；读失败不提示（菜单先按「没置顶」显示），写失败 30 秒内只提示一次并补读一次。这条的界面表现
 写在 [design.md](design.md)，形状写在 [formats.md](formats.md)。
 
 **自检的两个层次。** `scripts/check-package.mjs` 只读文件：导出路径存在、`cordis.patch.yml` 里有

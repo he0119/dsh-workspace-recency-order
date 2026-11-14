@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
 const HOST_ENTRY = join(ROOT, 'lib', 'index.js')
-// 产物执行会读/写 $DSH_HOME 下的固定列表；给它一个临时 home，别碰开发机上真的那份。
+// 产物执行会读/写 $DSH_HOME 下的置顶列表；给它一个临时 home，别碰开发机上真的那份。
 const TEST_HOME = mkdtempSync(join(tmpdir(), 'dsh-artifact-home-'))
 process.env.DSH_HOME = TEST_HOME
 const CLIENT_ENTRY = join(ROOT, 'lib', 'client.js')

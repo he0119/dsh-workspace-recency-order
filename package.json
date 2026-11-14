@@ -1,7 +1,7 @@
 {
   "name": "@he0119/dsh-workspace-recency-order",
   "version": "0.1.0",
-  "description": "DSH 的工作区排序插件：侧边栏工作区列表按「最近用过的会话」排序，并支持把某个工作区固定在最前面。",
+  "description": "DSH 的工作区排序插件：侧边栏工作区列表按「最近用过的会话」排序，并支持置顶工作区。",
   "type": "module",
   "packageManager": "pnpm@12.18.0",
   "main": "lib/index.js",

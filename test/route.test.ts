@@ -1,5 +1,5 @@
 /**
- * 固定列表路由：读、写、幂等、坏请求与卸载后的表现。
+ * 置顶列表路由：读、写、幂等、坏请求与卸载后的表现。
  *
  * 直接拿 `Request` 调处理函数——鉴权与 Host/Origin 检查是宿主的责任，不在这里测。
  */
@@ -43,7 +43,7 @@ function harness(dir: string) {
   return { store, warnings, changed, call, close: () => { closed = true } }
 }
 
-test('GET 返回当前固定列表', async () => {
+test('GET 返回当前置顶列表', async () => {
   const { dir, done } = tempDir()
   try {
     const h = harness(dir)
@@ -53,7 +53,7 @@ test('GET 返回当前固定列表', async () => {
   }
 })
 
-test('POST 切换固定：返回新列表并触发一次重排', async () => {
+test('POST 切换置顶：返回新列表并触发一次重排', async () => {
   const { dir, done } = tempDir()
   try {
     const h = harness(dir)

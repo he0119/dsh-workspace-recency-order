@@ -43,7 +43,7 @@ export interface ConnectionService {
       /** 完整路径（含 `/api` 前缀）。 */
       readonly path: string
       readonly methods: readonly ('GET' | 'HEAD' | 'POST')[]
-      /** 请求体怎么交给处理函数；固定列表很小，缓冲即可。 */
+      /** 请求体怎么交给处理函数；置顶列表很小，缓冲即可。 */
       readonly requestBody: 'buffered' | 'streaming'
       readonly fetch: (request: Request) => Promise<Response>
     }): (() => Promise<void>) | (() => void)

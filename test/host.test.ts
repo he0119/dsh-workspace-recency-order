@@ -1,5 +1,5 @@
 /**
- * Host 端接线：活动事件怎么触发重排、固定列表路由注册成什么样、两者怎么共用一份顺序。
+ * Host 端接线：活动事件怎么触发重排、置顶列表路由注册成什么样、两者怎么共用一份顺序。
  *
  * 假上下文只提供本插件真正用到的成员：注册表改内存数组、连接服务记下注册的路由。
  */
@@ -120,14 +120,14 @@ function listener(harnessed: HostHarness, name: string): (...args: any[]) => voi
   return found
 }
 
-/** 调一次固定列表路由。 */
+/** 调一次置顶列表路由。 */
 async function callRoute(
   harnessed: HostHarness,
   method: 'GET' | 'POST',
   command?: { workspaceId: string; pinned: boolean },
 ): Promise<{ status: number; value: { pinned?: string[]; error?: string } }> {
   const route = harnessed.routes.get('/api/workspace-recency/pins')
-  assert.ok(route, '固定列表的路由没有注册')
+  assert.ok(route, '置顶列表的路由没有注册')
   const response = await route.fetch(new Request('http://localhost/api/workspace-recency/pins', {
     method,
     ...(command === undefined ? {} : { body: JSON.stringify(command), headers: { 'content-type': 'application/json' } }),
@@ -238,7 +238,7 @@ test('关掉插件后不注册任何监听；未知配置键会告警', () => {
   assert.ok(on.warnings.some(message => message.includes('debouceMs')))
 })
 
-test('固定列表路由注册在 /api 下，只收 GET 与 POST', async () => {
+test('置顶列表路由注册在 /api 下，只收 GET 与 POST', async () => {
   const host = harness({ workspaces: [{ id: 'a', sessionIds: ['sa'] }] })
   apply(host.ctx, { debounceMs: 0, sortOnStart: false })
   const route = host.routes.get('/api/workspace-recency/pins')
@@ -247,7 +247,7 @@ test('固定列表路由注册在 /api 下，只收 GET 与 POST', async () => {
   assert.deepEqual((await callRoute(host, 'GET')).value, { pinned: [] })
 })
 
-test('固定一个新工作区只写一次顺序；之后活动只把别的工作区放到它下面', async () => {
+test('置顶一个新工作区只写一次顺序；之后活动只把别的工作区放到它下面', async () => {
   const host = harness({
     workspaces: [
       { id: 'a', sessionIds: ['sa'] },
@@ -261,17 +261,17 @@ test('固定一个新工作区只写一次顺序；之后活动只把别的工�
   const written = await callRoute(host, 'POST', { workspaceId: 'b', pinned: true })
   assert.deepEqual(written.value.pinned, ['b'])
   assert.deepEqual(ids(host), ['b', 'a', 'c'])
-  assert.equal(host.moves.length, 1, '固定一个新工作区只该写一次顺序')
+  assert.equal(host.moves.length, 1, '置顶一个新工作区只该写一次顺序')
 
-  // 在 c 里发消息：c 排到固定项下面，固定项不动。
+  // 在 c 里发消息：c 排到置顶项下面，置顶项不动。
   const beforeActivity = host.moves.length
   listener(host, 'api-session/activity')('sc', 1000)
   await tick()
   assert.deepEqual(ids(host), ['b', 'c', 'a'])
-  assert.ok(host.moves.slice(beforeActivity).every(([id]) => id !== 'b'), '固定项不该被活动挤动')
+  assert.ok(host.moves.slice(beforeActivity).every(([id]) => id !== 'b'), '置顶项不该被活动挤动')
 })
 
-test('固定第二个工作区时，已经固定的那个不动', async () => {
+test('置顶第二个工作区时，已经置顶的那个不动', async () => {
   const host = harness({
     workspaces: [
       { id: 'a', sessionIds: ['sa'] },
@@ -289,7 +289,7 @@ test('固定第二个工作区时，已经固定的那个不动', async () => {
   assert.deepEqual(host.moves.slice(before), [['d', 'b']])
 })
 
-test('固定列表里宿主没有的 id 会被丢掉', async () => {
+test('置顶列表里宿主没有的 id 会被丢掉', async () => {
   const host = harness({
     workspaces: [
       { id: 'a', sessionIds: ['sa'] },
@@ -303,7 +303,7 @@ test('固定列表里宿主没有的 id 会被丢掉', async () => {
   assert.deepEqual(ids(host), ['a', 'b'])
 })
 
-test('取消固定后回到活跃度顺序里该在的位置', async () => {
+test('取消置顶后回到活跃度顺序里该在的位置', async () => {
   const host = harness({
     workspaces: [
       { id: 'a', sessionIds: ['sa'] },
@@ -323,7 +323,7 @@ test('取消固定后回到活跃度顺序里该在的位置', async () => {
   assert.deepEqual(ids(host), ['a', 'c', 'b'])
 })
 
-test('固定列表落盘，重启后从文件读回来并排到开头', async () => {
+test('置顶列表落盘，重启后从文件读回来并排到开头', async () => {
   const workspaces = [
     { id: 'a', sessionIds: ['sa'] },
     { id: 'b', sessionIds: ['sb'] },
@@ -345,7 +345,7 @@ test('固定列表落盘，重启后从文件读回来并排到开头', async ()
   assert.deepEqual((await callRoute(second, 'GET')).value.pinned, ['c'])
 })
 
-test('没有连接服务时仍然排序，只是注册不了固定列表的路由', async () => {
+test('没有连接服务时仍然排序，只是注册不了置顶列表的路由', async () => {
   const host = harness({ workspaces: [{ id: 'a', sessionIds: ['sa'] }, { id: 'b', sessionIds: ['sb'] }], withConnection: false })
   apply(host.ctx, { debounceMs: 0, sortOnStart: false })
   listener(host, 'api-session/activity')('sb', 1000)
@@ -354,7 +354,7 @@ test('没有连接服务时仍然排序，只是注册不了固定列表的路�
   assert.equal(host.routes.size, 0)
 })
 
-test('注册表还没有工作区时，固定文件不被当成「都失效了」清空', async () => {
+test('注册表还没有工作区时，置顶文件不被当成「都失效了」清空', async () => {
   const host = harness({ workspaces: [] })
   const dir = join(host.home, 'workspace-recency-order')
   mkdirSync(dir, { recursive: true })

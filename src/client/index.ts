@@ -1,12 +1,12 @@
 /**
  * 工作区按活跃度排序 —— Web Client 端。
  *
- * 宿主的工作区行只留了「…」菜单这一个扩展位（会话行才有悬停按钮的插槽），所以「固定工作区」
- * 做成菜单里的一项：点一下把这个工作区固定，再点同一项松开。
+ * 宿主的工作区行只留了「…」菜单这一个扩展位（会话行才有悬停按钮的插槽），所以「置顶工作区」
+ * 做成菜单里的一项：点一下把这个工作区置顶，再点同一项松开。
  *
- * 顺序只有一个写手：宿主。页面**不碰顺序**，只通过 `/api/workspace-recency/pins` 读写固定列表：
- * 加载时读一次、点菜单时发一条切换命令、切回窗口时再读一次。固定项因此不会在活动之后被挤下去再
- * 弹回来，页面关掉期间固定也照样生效。
+ * 顺序只有一个写手：宿主。页面**不碰顺序**，只通过 `/api/workspace-recency/pins` 读写置顶列表：
+ * 加载时读一次、点菜单时发一条切换命令、切回窗口时再读一次。置顶项因此不会在活动之后被挤下去再
+ * 弹回来，页面关掉期间置顶也照样生效。
  */
 import { createElement, type ReactElement } from 'react'
 
@@ -26,22 +26,22 @@ const FAILURE_NOTICE_GAP_MS = 30_000
 
 const DICT: Record<string, Record<string, string>> = {
   zh: {
-    pin: '固定工作区到最前',
-    unpin: '取消工作区固定',
+    pin: '置顶',
+    unpin: '取消置顶',
     pinnedToast: '已置顶',
     unpinnedToast: '已取消置顶',
     failed: '调整工作区顺序失败',
   },
   en: {
-    pin: 'Keep workspace at top',
-    unpin: 'Stop keeping workspace at top',
+    pin: 'Pin',
+    unpin: 'Unpin',
     pinnedToast: 'Pinned',
     unpinnedToast: 'Unpinned',
     failed: 'Could not reorder workspaces',
   },
 }
 
-/** 图钉字形；`filled` 表示已固定的状态。 */
+/** 图钉字形；`filled` 表示已置顶的状态。 */
 const tack = (filled: boolean): ReactElement => createElement(
   'svg',
   { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
@@ -77,7 +77,7 @@ export function apply(ctx: ClientContext): void {
   /** 页面卸载时中止在途请求；中止的失败不再提示。 */
   const control = new AbortController()
   let refreshing: Promise<void> | undefined
-  /** 成功切换一次固定就加一；在它之前发出的读取，回来时不能把新状态盖掉。 */
+  /** 成功切换一次置顶就加一；在它之前发出的读取，回来时不能把新状态盖掉。 */
   let revision = 0
   let lastFailureAt = 0
 
@@ -113,14 +113,14 @@ export function apply(ctx: ClientContext): void {
         // 读取期间有一次切换成功了：那份回答比这次读取新，别拿旧列表盖掉它。
         if (revision === seen) pinned.set(ids)
       } catch {
-        // 宿主没有这条路由（插件只装了页面这一半）或者暂时连不上：菜单先按「没固定」显示。
+        // 宿主没有这条路由（插件只装了页面这一半）或者暂时连不上：菜单先按「没置顶」显示。
       }
     })().finally(() => { refreshing = undefined })
     return refreshing
   }
 
   /**
-   * 切换一个工作区的固定状态：以宿主的回答为准。
+   * 切换一个工作区的置顶状态：以宿主的回答为准。
    * @param workspaceId - 目标工作区。
    */
   const togglePin = async (workspaceId: string): Promise<void> => {
@@ -142,7 +142,7 @@ export function apply(ctx: ClientContext): void {
     return () => {}
   }, 'workspace-recency: initial pins')
 
-  // 另一个页面改了固定、或者连接刚恢复时，切回这个页面能看到最新状态。
+  // 另一个页面改了置顶、或者连接刚恢复时，切回这个页面能看到最新状态。
   ctx.effect(() => {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
     const onFocus = (): void => { void refresh() }

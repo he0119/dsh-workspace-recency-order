@@ -14,8 +14,8 @@ Status: implemented
 ## Decision
 
 顺序由 **Host 端**维护：插件在宿主里监听 `api-session/activity` 与 `api-session/added`，算出目标顺序，
-然后对工作区注册表调 `insertBefore(id, beforeId)` 把顺序真的改掉。客户端不参与排序，只把固定列表
-读写给宿主（见[固定列表交给宿主](2026-11-14-pins-live-in-the-host.md)）。
+然后对工作区注册表调 `insertBefore(id, beforeId)` 把顺序真的改掉。客户端不参与排序，只把置顶列表
+读写给宿主（见[置顶列表交给宿主](2026-11-14-pins-live-in-the-host.md)）。
 
 写入按「一步一次移动」走：每一轮都重新 `list()` 读注册表，用 `nextMove()` 找出第一处错位，只发一次
 `insertBefore`，最多重试「工作区个数」次。`src/order.ts` 的两个纯函数因此不碰任何服务，测试直接覆盖。

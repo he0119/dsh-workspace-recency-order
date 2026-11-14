@@ -15,7 +15,7 @@ test('新的在前，相同排名保持传入顺序', () => {
   assert.deepEqual(orderByActivity(workspaces, () => 0), ['a', 'b', 'c'])
 })
 
-test('固定项整体在开头，它们之间保持传入顺序、不按活跃度重排', () => {
+test('置顶项整体在开头，它们之间保持传入顺序、不按活跃度重排', () => {
   const workspaces = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }]
   const ranks: Record<string, number> = { a: 10, b: 90, c: 50, d: 70 }
   assert.deepEqual(

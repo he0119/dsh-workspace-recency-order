@@ -1,5 +1,5 @@
 /**
- * Web Client 端行为测试：菜单项的固定/取消固定、固定列表的读写与失败提示。
+ * Web Client 端行为测试：菜单项的置顶/取消置顶、置顶列表的读写与失败提示。
  *
  * 直接跑源码（Node 24 的类型剥离）；浏览器全局只补 `window`/`document`/`fetch`，UI 只断言注册面。
  * `fetch` 用假的：它按一条条切换命令维护「宿主那份列表」，并记下每次请求。
@@ -67,7 +67,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 /**
  * 搭一个 Client 上下文。
- * @param options - `pinned` 宿主初始的固定列表；`deny` 让权限面拒绝移动。
+ * @param options - `pinned` 宿主初始的置顶列表；`deny` 让权限面拒绝移动。
  */
 function harness({ pinned = [], deny = false } = {}) {
   server.pinned = [...pinned]
@@ -108,7 +108,7 @@ test('注册面：服务对得上（页面不再直接改顺序，所以不需�
   assert.deepEqual([...inject].sort(), ['contextMenus', 'locale', 'slots'])
 })
 
-test('加载时读宿主那份列表，已固定的工作区显示「取消固定」', async () => {
+test('加载时读宿主那份列表，已置顶的工作区显示「取消置顶」', async () => {
   const h = harness({ pinned: ['a'] })
   apply(h.ctx)
   await tick()
@@ -117,7 +117,7 @@ test('加载时读宿主那份列表，已固定的工作区显示「取消固�
   assert.equal(action(h, 'b').label, 'pin')
 })
 
-test('固定：发一条目标状态命令，以后端的回答为准', async () => {
+test('置顶：发一条目标状态命令，以后端的回答为准', async () => {
   const h = harness()
   apply(h.ctx)
   await tick()
@@ -129,7 +129,7 @@ test('固定：发一条目标状态命令，以后端的回答为准', async ()
   assert.deepEqual(h.notices.at(-1), { text: 'pinnedToast', success: true })
 })
 
-test('取消固定：命令带 pinned: false，列表里只剩别的工作区', async () => {
+test('取消置顶：命令带 pinned: false，列表里只剩别的工作区', async () => {
   const h = harness({ pinned: ['b', 'c'] })
   apply(h.ctx)
   await tick()
@@ -141,7 +141,7 @@ test('取消固定：命令带 pinned: false，列表里只剩别的工作区', 
   assert.deepEqual(h.notices.at(-1), { text: 'unpinnedToast', success: true })
 })
 
-test('宿主不认识的 id 不会变成固定，页面以后端的回答为准', async () => {
+test('宿主不认识的 id 不会变成置顶，页面以后端的回答为准', async () => {
   const h = harness()
   apply(h.ctx)
   await tick()

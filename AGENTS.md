@@ -18,9 +18,9 @@
 | `.agents/notes/` | 决策的依据、被否决的备选方案与代价；一条决策一篇，格式由 `test/notes.test.ts` 核 |
 | `docs/AGENTS.md` | `docs/` 这一层的文档规范与写作规则 |
 | `docs/internals.md` | 决策地图（按主题索引到笔记），以及没有笔记承载的当前机制 |
-| `docs/design.md` | 界面与文案的唯一规格：菜单项、图标、提示语、固定组与失败的表现、验收 |
+| `docs/design.md` | 界面与文案的唯一规格：菜单项、图标、提示语、置顶组与失败的表现、验收 |
 | `docs/development.md` | 目录结构、逐文件职责、开发命令、怎么装进真实 profile、GitHub 上的检查 |
-| `docs/formats.md` | 落盘与跨进程的格式：宿主注册表、固定列表文件、固定列表的 HTTP 路由、配置对象、语言键 |
+| `docs/formats.md` | 落盘与跨进程的格式：宿主注册表、置顶列表文件、置顶列表的 HTTP 路由、配置对象、语言键 |
 | `docs/flows.md` | 从一次活动或一次点击到宿主写盘的流程，失败怎么办 |
 | `docs/glossary.md` | 术语表：官方怎么说、照写什么、别写成什么 |
 | `src/*` 的文件头注释 | 这个文件为什么存在、和宿主哪个接口对应；不重复 README 的用法 |
@@ -51,10 +51,10 @@
 
 - **排序改的是宿主那份持久工作区顺序**（注册表 `workspaceIds`）。不要试图在浏览器里改渲染顺序：侧边栏按那份顺序渲染，客户端没有排序接口。
 - **工作区行只有一个扩展位**：行上的「…」菜单（`ctx.contextMenus.register({ target: 'workspace' })`）。行内按钮没有插槽；整体替换 `sidebar.workspaces` 会丢搜索、拖动、树形分组与对话框，别这么做。
-- **顺序只有一个写手：Host。** 页面不许再自己挪工作区；它只发一条 `{ workspaceId, pinned }` 命令（`POST /api/workspace-recency/pins`），由 Host 在排序里把固定项放开头。这一条是「固定项不会下掉再弹回」的唯一保证。
-- **固定列表归 Host**：存在 `<DSH_HOME>/workspace-recency-order/pins.json`，读写走 `ctx.connection.fetch.register()` 注册的认证路由（`GET/POST /api/workspace-recency/pins`）；不要在页面里另存一份当权威。写入是幂等的「目标状态」命令，不是整份列表替换。
+- **顺序只有一个写手：Host。** 页面不许再自己挪工作区；它只发一条 `{ workspaceId, pinned }` 命令（`POST /api/workspace-recency/pins`），由 Host 在排序里把置顶项放开头。这一条是「置顶项不会下掉再弹回」的唯一保证。
+- **置顶列表归 Host**：存在 `<DSH_HOME>/workspace-recency-order/pins.json`，读写走 `ctx.connection.fetch.register()` 注册的认证路由（`GET/POST /api/workspace-recency/pins`）；不要在页面里另存一份当权威。写入是幂等的「目标状态」命令，不是整份列表替换。
 - **两端共用一个契约**：路由路径、请求/响应形状只写在 `src/protocol.ts`，Host 与页面都 import 它；不要在两边各写一份字符串。
-- **固定项只收宿主注册表里还有的 id**：加载与每次写入时都按注册表过滤（`src/pins.ts` 的 `PinStore`），免得删掉的工作区一直留在开头占位。
+- **置顶项只收宿主注册表里还有的 id**：加载与每次写入时都按注册表过滤（`src/pins.ts` 的 `PinStore`），免得删掉的工作区一直留在开头占位。
 - **客户端产物只 `require` 平台基线模块**（`react` / `react/jsx-runtime`）；颜色只用主题 token，不 import 官方控件包。
 
 ## 接口以官方包为准
@@ -65,7 +65,7 @@
 - 工作区注册表：`@deepseek-ai/dsh-workspace`（`list()` / `insertBefore()` / `archivedSessionIds`）
 - 会话列表：`@deepseek-ai/dsh-api-session-controller`（`sessionController.list()` 的 `SessionSummary`）
 - 活动事件：同包的 `api-session/activity`（只在人类消息时触发）
-- 固定列表路由：`@deepseek-ai/dsh-client-connection` 的 `ctx.connection.fetch.register()`
+- 置顶列表路由：`@deepseek-ai/dsh-client-connection` 的 `ctx.connection.fetch.register()`
   （路径是含 `/api` 的完整 pathname，只有 owner 身份的浏览器会话能访问）
 - 客户端菜单与权限：`@deepseek-ai/dsh-client-ui-context-menu/client`、
   `@deepseek-ai/dsh-api-remote-access` 的权限源
@@ -92,10 +92,10 @@ pnpm run build && pnpm run check:package   # 产物 + 打包自检
   确认 `lib/client.js` 仍以 `window.__ModuleLoader__.load(` 开头、模块 id 等于包名；
   `test/artifact.test.mjs` 会按宿主方式加载这两个产物。
 - 改了 Host 排序：用真实 profile 装一次，看侧边栏顺序是否按最近活动变化；顺序已正确时不应写盘。
-- 改了客户端固定：在真实页面上点一次菜单项，确认固定后行停在开头那一组、在别的工作区发消息时
-  固定项不动，取消后回到活跃度位置，并确认控制台没有 `slot entry crashed` 或重复注册报错。
-- 改了固定列表的路由或落盘：确认 `$DSH_HOME/workspace-recency-order/pins.json` 在切换固定后
-  被改写、刷新页面后菜单仍显示「取消固定」。
+- 改了客户端置顶：在真实页面上点一次菜单项，确认置顶后行停在开头那一组、在别的工作区发消息时
+  置顶项不动，取消后回到活跃度位置，并确认控制台没有 `slot entry crashed` 或重复注册报错。
+- 改了置顶列表的路由或落盘：确认 `$DSH_HOME/workspace-recency-order/pins.json` 在切换置顶后
+  被改写、刷新页面后菜单仍显示「取消置顶」。
 - 改了 `.agents/notes/` 或新增笔记：`pnpm test` 里的 `test/notes.test.ts` 会核路径、头部三行、
   `Status:` 与目录一致、必备章节与相对链接。
 

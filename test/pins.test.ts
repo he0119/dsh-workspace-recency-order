@@ -1,5 +1,5 @@
 /**
- * 固定列表的宿主状态：路径、读盘、过滤、切换与落盘。
+ * 置顶列表的宿主状态：路径、读盘、过滤、切换与落盘。
  */
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -31,7 +31,7 @@ function store(dir: string, known: string[] = ['a', 'b', 'c']) {
 const fileOf = (dir: string): { version: number; workspaceIds: string[] } =>
   JSON.parse(readFileSync(join(dir, 'pins.json'), 'utf8'))
 
-test('固定列表的路径：$DSH_HOME 优先，空值当没设，否则 ~/.dsh 下', () => {
+test('置顶列表的路径：$DSH_HOME 优先，空值当没设，否则 ~/.dsh 下', () => {
   const file = join('workspace-recency-order', PINS_FILE)
   assert.equal(pinsPath({}, '/home/me'), join('/home/me', '.dsh', file))
   assert.equal(pinsPath({ DSH_HOME: '/srv/dsh' }, '/home/me'), join('/srv/dsh', file))
@@ -64,7 +64,7 @@ test('读盘时丢掉注册表里没有的 id，并把文件改回干净的那�
   }
 })
 
-test('注册表还没有工作区时，固定列表原样留着', async () => {
+test('注册表还没有工作区时，置顶列表原样留着', async () => {
   const { dir, done } = tempDir()
   try {
     writeFileSync(join(dir, 'pins.json'), JSON.stringify({ version: 1, workspaceIds: ['later'] }))
@@ -116,7 +116,7 @@ test('load 只读一次盘：之后再改文件也不影响内存', async () => 
   }
 })
 
-test('固定：追加到末尾并落盘；同一条命令重复发送不重复添加', async () => {
+test('置顶：追加到末尾并落盘；同一条命令重复发送不重复添加', async () => {
   const { dir, done } = tempDir()
   try {
     const { instance } = store(dir)
@@ -131,7 +131,7 @@ test('固定：追加到末尾并落盘；同一条命令重复发送不重复�
   }
 })
 
-test('取消固定：从列表里去掉；没固定过的工作区取消也是空操作', async () => {
+test('取消置顶：从列表里去掉；没置顶过的工作区取消也是空操作', async () => {
   const { dir, done } = tempDir()
   try {
     writeFileSync(join(dir, 'pins.json'), JSON.stringify({ version: 1, workspaceIds: ['a', 'b'] }))
@@ -144,7 +144,7 @@ test('取消固定：从列表里去掉；没固定过的工作区取消也是�
   }
 })
 
-test('固定宿主里没有的 id 是空操作，不会写进文件', async () => {
+test('置顶宿主里没有的 id 是空操作，不会写进文件', async () => {
   const { dir, done } = tempDir()
   try {
     const { instance } = store(dir)

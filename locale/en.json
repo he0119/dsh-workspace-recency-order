@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Workspace activity order",
-    "description": "Keeps the workspace list ordered by the most recently used session: the workspace you last sent a message in moves to the top, and the other workspaces keep their relative order. A workspace's «…» menu also offers «Keep workspace at top», which holds it in the leading group no matter what you use elsewhere; the pin list lives on the Host, the page only owns the menu, and the same menu item releases it. Automatic sorting overwrites the positions you drag by hand, on the next message or a restart — except inside the pinned group; turn the plugin off in Settings → Plugins to keep your own order."
+    "description": "Keeps the workspace list ordered by the most recently used session: the workspace you last sent a message in moves to the top, and the other workspaces keep their relative order. A workspace's «…» menu also offers «Pin», which holds it in the leading group no matter what you use elsewhere; the pin list lives on the Host, the page only owns the menu, and the same menu item releases it. Automatic sorting overwrites the positions you drag by hand, on the next message or a restart — except inside the pinned group; turn the plugin off in Settings → Plugins to keep your own order."
   }
 }
