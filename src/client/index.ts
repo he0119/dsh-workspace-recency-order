@@ -28,15 +28,15 @@ const DICT: Record<string, Record<string, string>> = {
   zh: {
     pin: '固定工作区到最前',
     unpin: '取消工作区固定',
-    pinnedToast: '已固定：这个工作区会留在最前那一组，再点同一项可取消',
-    unpinnedToast: '已取消固定',
+    pinnedToast: '已置顶',
+    unpinnedToast: '已取消置顶',
     failed: '调整工作区顺序失败',
   },
   en: {
     pin: 'Keep workspace at top',
     unpin: 'Stop keeping workspace at top',
-    pinnedToast: 'Kept in the top group; pick the same item again to release it',
-    unpinnedToast: 'No longer kept at the top',
+    pinnedToast: 'Pinned',
+    unpinnedToast: 'Unpinned',
     failed: 'Could not reorder workspaces',
   },
 }

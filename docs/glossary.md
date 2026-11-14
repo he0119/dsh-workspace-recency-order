@@ -9,7 +9,7 @@
 | 持久顺序 | — | 宿主那份持久顺序 | 排序、排序结果（那是动作） | [formats.md](formats.md) |
 | 会话 | session | 会话 | 对话、聊天 | `sessionController` |
 | 活动 / 活跃 | activity | 活动（一次事件）、活跃度（排序依据） | 活跃（当名词用） | 事件 `api-session/activity` |
-| 固定 | —（宿主只有会话级固定） | 固定（动词：固定到最前） | 置顶、钉住 | [design.md](design.md) |
+| 固定 | —（宿主只有会话级固定） | 固定（动词：固定到最前）；提示语写「已置顶」「已取消置顶」，与 DSH 的会话置顶同词 | 钉住 | [design.md](design.md) |
 | 固定组 | — | 固定组（列表开头那一段固定项） | 固定区、置顶区、钉住区 | [design.md](design.md) |
 | 快照 | snapshot | 快照 | 状态、数据 | `GET /api/workspace-recency/pins` 的回答 |
 | 基线模块 | platform baseline modules | 平台基线模块 | 内置模块、核心模块 | [development.md](development.md) |
