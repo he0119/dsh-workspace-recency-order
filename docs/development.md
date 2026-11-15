@@ -84,8 +84,9 @@ pnpm run check:package  # 打包自检，需要先 build
 包自带 `lib/`（发布时由 `prepare` 现场构建），装完刷新页面——客户端那一半是新加载的模块，不刷新看不到
 菜单项。升级同样走 npm：改 `package.json` 里那个版本范围，或者让插件管理器做一次更新。
 
-开发（`web-dev`，要看到本目录的改动）：用 `file:` 装本目录——pnpm 会对 `file:` 的本地目录跑 `prepare`
-（= prebuild + build），装完就有产物。用 `link:` 软链的话不跑构建，得先自己 `pnpm run build`。
+开发（`web-dev`，要看到本目录的改动）：先在本目录构建，再把它装进 profile。装本地目录时 pnpm **不会**
+替你跑构建：`file:` 是把目录复制一份（改完源码要重新装一次才生效），`link:` 是软链（重新 `pnpm run build`
+后刷新页面即可）。两种都要求先有产物——在本目录跑一次 `pnpm install` 就会跑 `prepare`（prebuild + build）。
 
 改完源码之后：Host 侧改动要重启 DSH（宿主进程里跑的是 `lib/index.js`）；只改客户端的话，重新
 `pnpm run build:client` 再刷新页面即可。

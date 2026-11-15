@@ -29,7 +29,9 @@ changes show up there:
 pnpm install        # runs prepare (builds lib/), so the artifacts are there when it finishes
 ```
 
-Then pick this directory in **Add plugin**. Do **not** install from the GitHub URL or a `github:` spec: the
+Then pick this directory in **Add plugin** (`file:` copies it, `link:` symlinks it). A local directory install
+never builds, so run the step above first; with `file:` you have to install again after editing the source.
+Do **not** install from the GitHub URL or a `github:` spec: the
 built artifacts in `lib/` are not committed (they are in `.gitignore`), so a git install arrives without its
 entry files and fails to load.
 
