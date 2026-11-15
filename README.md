@@ -18,19 +18,22 @@
 
 ## 安装
 
-日常使用的 profile（例如 `web`）从 npm 装：在 DSH 的「设置 → 插件」里用「添加插件」填包名
+日常使用的 profile 从 npm 装：在 DSH 的「设置 → 插件」里用「添加插件」填包名
 `@he0119/dsh-workspace-recency-order`，或让 agent 用插件管理器的 `install_bundle` 指向这个包名。装完刷新
 页面（客户端那一半是新加载的模块）。
 
-开发实例的 `web-dev` profile（`~/.dsh-dev`）才装本目录，这样能看到未发布的改动：
+开发实例（`~/.dsh-dev`，profile 也叫 `web`）才装本目录，而且用 `link:` 指向源码目录，这样能看到未发布的
+改动：
 
 ```bash
 pnpm install        # 会跑 prepare（构建 lib/），装完就有产物
 ```
 
-然后在「设置 → 插件」里选中这个目录（`file:` 是复制一份，`link:` 是软链）。装本地目录不会自动构建，
-所以先把上面那步做完；用 `file:` 的话改完源码要重新装一次。**别用 GitHub 地址或 `github:` 装**：仓库里没有构建产物 `lib/`
-（它在 `.gitignore` 里），从 git 装出来的包缺入口文件，加载时会报错。
+然后在「设置 → 插件」里选中这个目录（会记成 `link:`）。装本地目录不会自动构建，所以先把上面那步做完；
+之后改完源码重新 `pnpm run build` 就生效，不用重装。
+
+**别用 GitHub 地址或 `github:` 规格装**：仓库里没有构建产物 `lib/`（它在 `.gitignore` 里），从 git 装出来
+的包缺入口文件，加载时会报错。
 
 ## 用法
 
