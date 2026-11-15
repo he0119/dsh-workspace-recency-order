@@ -18,22 +18,22 @@ Why a plugin: the sidebar renders the durable workspace order kept by the Host r
 
 ## Install
 
-A profile you actually use (for example `web`) installs from npm: open **Settings → Plugins → Add plugin**
-and enter the package name `@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's
-`install_bundle` with that package name. Reload the page afterwards (the client half is loaded fresh).
+A profile you actually use installs from npm: open **Settings → Plugins → Add plugin** and enter the package
+name `@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's `install_bundle` with
+that package name. Reload the page afterwards (the client half is loaded fresh).
 
-Only the development instance's `web-dev` profile (`~/.dsh-dev`) installs this checkout, so unreleased
-changes show up there:
+Only the development instance (`~/.dsh-dev`, whose profile is also named `web`) installs this checkout, and it
+does so with a `link:` to the source directory, so unreleased changes show up there:
 
 ```bash
 pnpm install        # runs prepare (builds lib/), so the artifacts are there when it finishes
 ```
 
-Then pick this directory in **Add plugin** (`file:` copies it, `link:` symlinks it). A local directory install
-never builds, so run the step above first; with `file:` you have to install again after editing the source.
-Do **not** install from the GitHub URL or a `github:` spec: the
-built artifacts in `lib/` are not committed (they are in `.gitignore`), so a git install arrives without its
-entry files and fails to load.
+Then pick this directory in **Add plugin** (it is recorded as `link:`). A local directory install never
+builds, so run the step above first; after that a new `pnpm run build` takes effect without reinstalling.
+
+Do **not** install from the GitHub URL or a `github:` spec: the built artifacts in `lib/` are not committed
+(they are in `.gitignore`), so a git install arrives without its entry files and fails to load.
 
 ## Use
 
