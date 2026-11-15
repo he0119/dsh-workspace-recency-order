@@ -18,11 +18,12 @@ Why a plugin: the sidebar renders the durable workspace order kept by the Host r
 
 ## Install
 
-From npm: open **Settings → Plugins → Add plugin** and enter the package name
-`@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's `install_bundle` with that
-package name. Reload the page afterwards (the client half is loaded fresh).
+A profile you actually use (for example `web`) installs from npm: open **Settings → Plugins → Add plugin**
+and enter the package name `@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's
+`install_bundle` with that package name. Reload the page afterwards (the client half is loaded fresh).
 
-From a checkout of this directory (when you edit the source):
+Only the development instance's `web-dev` profile (`~/.dsh-dev`) installs this checkout, so unreleased
+changes show up there:
 
 ```bash
 pnpm install        # runs prepare (builds lib/), so the artifacts are there when it finishes

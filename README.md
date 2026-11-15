@@ -18,16 +18,18 @@
 
 ## 安装
 
-装发布版：在 DSH 的「设置 → 插件」里用「添加插件」填包名 `@he0119/dsh-workspace-recency-order`，或让 agent 用插件管理器的 `install_bundle` 指向这个包名。装完刷新页面（客户端那一半是新加载的模块）。
+日常使用的 profile（例如 `web`）从 npm 装：在 DSH 的「设置 → 插件」里用「添加插件」填包名
+`@he0119/dsh-workspace-recency-order`，或让 agent 用插件管理器的 `install_bundle` 指向这个包名。装完刷新
+页面（客户端那一半是新加载的模块）。
 
-装本目录（改源码时）：
+开发实例的 `web-dev` profile（`~/.dsh-dev`）才装本目录，这样能看到未发布的改动：
 
 ```bash
 pnpm install        # 会跑 prepare（构建 lib/），装完就有产物
 ```
 
-然后在「设置 → 插件」里选中这个目录。**别用 GitHub 地址或 `github:` 装**：仓库里没有构建产物 `lib/`（它在
-`.gitignore` 里），从 git 装出来的包缺入口文件，加载时会报错。
+然后在「设置 → 插件」里选中这个目录。**别用 GitHub 地址或 `github:` 装**：仓库里没有构建产物 `lib/`
+（它在 `.gitignore` 里），从 git 装出来的包缺入口文件，加载时会报错。
 
 ## 用法
 
