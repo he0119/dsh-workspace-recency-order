@@ -22,6 +22,7 @@
 | `docs/development.md` | 目录结构、逐文件职责、开发命令、怎么装进真实 profile、GitHub 上的检查 |
 | `docs/formats.md` | 落盘与跨进程的格式：宿主注册表、置顶列表文件、置顶列表的 HTTP 路由、配置对象、语言键 |
 | `docs/flows.md` | 从一次活动或一次点击到宿主写盘的流程，失败怎么办 |
+| `docs/releasing.md` | 发布流程：包名与 scope、首版为什么必须手动发、标签触发后那三道校验 |
 | `docs/glossary.md` | 术语表：官方怎么说、照写什么、别写成什么 |
 | `src/*` 的文件头注释 | 这个文件为什么存在、和宿主哪个接口对应；不重复 README 的用法 |
 

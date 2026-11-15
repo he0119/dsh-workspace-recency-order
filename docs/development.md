@@ -76,32 +76,36 @@ pnpm run check:package  # 打包自检，需要先 build
 
 ## 装进真实 profile
 
-本插件**不发布到 npm**，装法只有一种：把本目录 link 进当前 profile（不是 `npm install` 一个包名）。
+装发布版：在 DSH 的「设置 → 插件」里用「添加插件」填包名 `@he0119/dsh-workspace-recency-order`，或让
+agent 用插件管理器的 `install_bundle` 指向这个包名。npm 上的包自带 `lib/`（发布时由 `prepare` 现场
+构建），装完刷新页面——客户端那一半是新加载的模块，不刷新看不到菜单项。
+
+装本目录（改源码时）：
 
 ```sh
-pnpm run build          # link 安装不会帮你构建，产物得先有
+pnpm install            # 会跑 prepare（prebuild + build），装完就已经有产物
 ```
 
-然后在 DSH 的「设置 → 插件」里用「添加插件」选中本目录，或让 agent 用插件管理器的 `install_bundle`
-指向本目录。装完刷新页面——客户端那一半是新加载的模块，不刷新看不到菜单项。
+然后在「设置 → 插件」里选中本目录，或让 `install_bundle` 指向它。用 `pnpm link` 那种方式装的话没有
+`prepare` 帮你构建，得先自己 `pnpm run build`。
 
 改完源码之后：Host 侧改动要重启 DSH（宿主进程里跑的是 `lib/index.js`）；只改客户端的话，重新
 `pnpm run build:client` 再刷新页面即可。
 
-## GitHub 上的检查与 Release
+## GitHub 上的检查与发布
 
-仓库放在 GitHub 上，不发布到 npm。四份配置各管一件事：
+五份配置各管一件事：
 
 | 文件 | 干什么 |
 | --- | --- |
 | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | push 到 `main` 与每个 PR 跑：install → typecheck → build → check:package → test，与本地跑的顺序一致 |
+| [`.github/workflows/publish.yml`](../.github/workflows/publish.yml) | 推 `v*` 标签时先把 `ci.yml` 那套检查跑一遍，通过后发 npm、再建 GitHub Release |
 | [`.github/workflows/autolabeler.yml`](../.github/workflows/autolabeler.yml) | 按 PR 标题（约定式提交）给 PR 补标签 |
 | [`.github/autolabeler.yml`](../.github/autolabeler.yml) | 上面那条规则表：`feat:` → `enhancement`、`fix:` → `bug`、`docs:` → `documentation`，其余维护类 → `chore`，带 `!` 的额外打 `breaking-change` |
-| [`.github/release.yml`](../.github/release.yml) | 手动建 Release 时按标签分节 |
+| [`.github/release.yml`](../.github/release.yml) | Publish 建 Release 时按标签分节 |
 
-**没有发布流水线**：没有 npm，也没有「推标签就自动发版」。要出 Release 就在 GitHub 上手动建，
-`gh release create v0.1.0 --generate-notes` 会把上次标签以来的改动按 `.github/release.yml` 分好组；
-版本号写在 `package.json` 里，改完记得跟着打标签。
+发布只在推 `v*` 标签时发生：版本号与标签怎么对齐、首版为什么必须手动发、Publish 的三道校验与失败后
+怎么重试，都写在 [releasing.md](releasing.md)。
 
 ## 没有浏览器控制时
 
