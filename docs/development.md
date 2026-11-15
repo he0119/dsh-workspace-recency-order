@@ -76,18 +76,16 @@ pnpm run check:package  # 打包自检，需要先 build
 
 ## 装进真实 profile
 
-装发布版：在 DSH 的「设置 → 插件」里用「添加插件」填包名 `@he0119/dsh-workspace-recency-order`，或让
-agent 用插件管理器的 `install_bundle` 指向这个包名。npm 上的包自带 `lib/`（发布时由 `prepare` 现场
-构建），装完刷新页面——客户端那一半是新加载的模块，不刷新看不到菜单项。
+装法按 profile 分工：**日常使用的 `web` profile 从 npm 装包名，只有开发实例的 `web-dev` profile
+（`~/.dsh-dev`）装本目录。**
 
-装本目录（改源码时）：
+日常使用（例如 `web`）：在 DSH 的「设置 → 插件」里用「添加插件」填包名
+`@he0119/dsh-workspace-recency-order`，或让 agent 用插件管理器的 `install_bundle` 指向这个包名。npm 上的
+包自带 `lib/`（发布时由 `prepare` 现场构建），装完刷新页面——客户端那一半是新加载的模块，不刷新看不到
+菜单项。升级同样走 npm：改 `package.json` 里那个版本范围，或者让插件管理器做一次更新。
 
-```sh
-pnpm install            # 会跑 prepare（prebuild + build），装完就已经有产物
-```
-
-然后在「设置 → 插件」里选中本目录，或让 `install_bundle` 指向它。用 `pnpm link` 那种方式装的话没有
-`prepare` 帮你构建，得先自己 `pnpm run build`。
+开发（`web-dev`，要看到本目录的改动）：用 `file:` 装本目录——pnpm 会对 `file:` 的本地目录跑 `prepare`
+（= prebuild + build），装完就有产物。用 `link:` 软链的话不跑构建，得先自己 `pnpm run build`。
 
 改完源码之后：Host 侧改动要重启 DSH（宿主进程里跑的是 `lib/index.js`）；只改客户端的话，重新
 `pnpm run build:client` 再刷新页面即可。
