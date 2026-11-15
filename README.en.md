@@ -18,19 +18,19 @@ Why a plugin: the sidebar renders the durable workspace order kept by the Host r
 
 ## Install
 
-A profile you actually use installs from npm: open **Settings → Plugins → Add plugin** and enter the package
-name `@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's `install_bundle` with
-that package name. Reload the page afterwards (the client half is loaded fresh).
+Open **Settings → Plugins → Add plugin** and enter the package name
+`@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's `install_bundle` with that
+package name. Reload the page afterwards (the client half is loaded fresh).
 
-Only the development instance (`~/.dsh-dev`, whose profile is also named `web`) installs this checkout, and it
-does so with a `link:` to the source directory, so unreleased changes show up there:
+When you work on this plugin, install this checkout into the development profile you are using (it is
+recorded as `link:`):
 
 ```bash
 pnpm install        # runs prepare (builds lib/), so the artifacts are there when it finishes
 ```
 
-Then pick this directory in **Add plugin** (it is recorded as `link:`). A local directory install never
-builds, so run the step above first; after that a new `pnpm run build` takes effect without reinstalling.
+A local directory install never builds, so run the step above first; after that a new `pnpm run build` takes
+effect without reinstalling.
 
 Do **not** install from the GitHub URL or a `github:` spec: the built artifacts in `lib/` are not committed
 (they are in `.gitignore`), so a git install arrives without its entry files and fails to load.

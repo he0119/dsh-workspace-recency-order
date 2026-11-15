@@ -57,11 +57,10 @@
 - **两端共用一个契约**：路由路径、请求/响应形状只写在 `src/protocol.ts`，Host 与页面都 import 它；不要在两边各写一份字符串。
 - **置顶项只收宿主注册表里还有的 id**：加载与每次写入时都按注册表过滤（`src/pins.ts` 的 `PinStore`），免得删掉的工作区一直留在开头占位。
 - **客户端产物只 `require` 平台基线模块**（`react` / `react/jsx-runtime`）；颜色只用主题 token，不 import 官方控件包。
-- **日常实例走 npm，开发实例走 `link:`**：两个实例的 profile 都叫 `web`，靠 DSH_HOME 区分——日常是
-  `~/.dsh/profiles/web`（systemd 的 `dsh-web`），按包名 `@he0119/dsh-workspace-recency-order` 装；开发是
-  `~/.dsh-dev/profiles/web`（systemd 的 `dsh-web-dev`），插件一律 `link:` 到自己的源码目录，本插件就是
-  `link:/home/uy_sun/dev/dsh-workspace-recency-order`。文档与给用户的建议里不要出现从 GitHub 地址或
-  `github:` 规格装的写法——仓库里没有 `lib/`，那样装出来是坏的。
+- **装插件只走 npm，本地目录只留给开发**：发给别人装就报包名
+  `@he0119/dsh-workspace-recency-order`；自己调这个插件时把本目录 `link:` 进正在用的开发 profile（软链，
+  重新构建即生效，不用重装）。文档与给用户的建议里不要出现从 GitHub 地址或 `github:` 规格装的写法——
+  仓库里没有 `lib/`，那样装出来是坏的。
 
 ## 接口以官方包为准
 
