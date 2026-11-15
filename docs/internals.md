@@ -13,6 +13,7 @@
 | 置顶列表存哪、谁来纠正 | 宿主（`pins.json` + 认证路由 + 幂等命令），页面只读写、不挪顺序 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-pins-live-in-the-host.md) |
 | 客户端产物形状 | 经典脚本，只 require `react` 基线 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-client-artifact-is-a-classic-script.md) |
 | 测试怎么跑 | 进程内 runner，`.test.ts` 进类型检查 | [笔记](../.agents/notes/implemented/testing/2026-11-14-tests-run-in-one-process.md) |
+| 怎么发出去 | npm 包，推 `v*` 标签触发 Publish；产物不进 git，发布时由 `prepare` 现场构建 | [笔记](../.agents/notes/implemented/process/2026-11-15-publish-from-tag.md) |
 
 ## 宿主的接口面
 

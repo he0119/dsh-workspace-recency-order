@@ -18,16 +18,16 @@
 
 ## 安装
 
-本插件不发布到 npm，只有一种装法：克隆仓库，把这份目录 link 进当前 profile。
+装发布版：在 DSH 的「设置 → 插件」里用「添加插件」填包名 `@he0119/dsh-workspace-recency-order`，或让 agent 用插件管理器的 `install_bundle` 指向这个包名。装完刷新页面（客户端那一半是新加载的模块）。
+
+装本目录（改源码时）：
 
 ```bash
-git clone https://github.com/he0119/dsh-workspace-recency-order.git
-cd dsh-workspace-recency-order
-pnpm install
-pnpm run build      # link 安装不会帮你跑构建，产物得先有
+pnpm install        # 会跑 prepare（构建 lib/），装完就有产物
 ```
 
-然后在 DSH 的「设置 → 插件」里用「添加插件」选中这个目录，或让 agent 用插件管理器的 `install_bundle` 指向它。装完刷新页面（客户端那一半是新加载的模块）。
+然后在「设置 → 插件」里选中这个目录。**别用 GitHub 地址或 `github:` 装**：仓库里没有构建产物 `lib/`（它在
+`.gitignore` 里），从 git 装出来的包缺入口文件，加载时会报错。
 
 ## 用法
 
@@ -82,6 +82,7 @@ pnpm run build      # link 安装不会帮你跑构建，产物得先有
 - [docs/flows.md](docs/flows.md)——一次活动、一次点击分别走到哪一步
 - [docs/internals.md](docs/internals.md)——宿主的接口面与决策索引
 - [docs/development.md](docs/development.md)——目录结构、构建、测试、装进真实 profile
+- [docs/releasing.md](docs/releasing.md)——发版：包名与 scope、首版为什么得手动发、标签触发后怎么校验
 - [.agents/notes/](.agents/notes/AGENTS.md)——每条决策的依据与被放弃的做法
 
 ## 许可证

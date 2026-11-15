@@ -18,16 +18,19 @@ Why a plugin: the sidebar renders the durable workspace order kept by the Host r
 
 ## Install
 
-There is no npm package; the only way in is to clone this repository and link the directory into the current profile.
+From npm: open **Settings → Plugins → Add plugin** and enter the package name
+`@he0119/dsh-workspace-recency-order`, or let an agent call the plugin manager's `install_bundle` with that
+package name. Reload the page afterwards (the client half is loaded fresh).
+
+From a checkout of this directory (when you edit the source):
 
 ```bash
-git clone https://github.com/he0119/dsh-workspace-recency-order.git
-cd dsh-workspace-recency-order
-pnpm install
-pnpm run build      # a link install does not run the build
+pnpm install        # runs prepare (builds lib/), so the artifacts are there when it finishes
 ```
 
-Then add the directory with **Settings → Plugins → Add plugin**, or let an agent call the plugin manager's `install_bundle` with this directory. Reload the page afterwards (the client half is loaded fresh).
+Then pick this directory in **Add plugin**. Do **not** install from the GitHub URL or a `github:` spec: the
+built artifacts in `lib/` are not committed (they are in `.gitignore`), so a git install arrives without its
+entry files and fails to load.
 
 ## Use
 
@@ -82,6 +85,7 @@ An unknown key or unusable value logs a `warn` on the Host and falls back to the
 - [docs/flows.md](docs/flows.md) — what one activity or one click walks through
 - [docs/internals.md](docs/internals.md) — the Host surface this plugin uses, and the decision index
 - [docs/development.md](docs/development.md) — layout, build, tests, installing into a real profile
+- [docs/releasing.md](docs/releasing.md) — publishing: package name and scope, the manual first release, the tag checks
 - [.agents/notes/](.agents/notes/AGENTS.md) — why each decision was made, and what was rejected
 
 ## License

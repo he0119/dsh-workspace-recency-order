@@ -50,6 +50,7 @@
     "build:client": "tsdown --filter @he0119/dsh-workspace-recency-order/client",
     "build:types": "tsdown --filter @he0119/dsh-workspace-recency-order/types",
     "watch": "tsdown --watch --concurrency 1",
+    "prepare": "node --run prebuild && node --run build",
     "typecheck": "tsc -p tsconfig.test.json && tsc -p tsconfig.client.json",
     "test": "node test/run-all.mjs",
     "test:runner": "node --test",
@@ -67,6 +68,9 @@
     "pin"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/he0119/dsh-workspace-recency-order.git"
