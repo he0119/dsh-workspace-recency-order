@@ -10,7 +10,8 @@
 | `src/index.ts` | Host 接线：活动事件、启动种子、排序队列、注册置顶列表路由 |
 | `src/protocol.ts` | 两端共用的契约：路由路径、命令与响应形状、解析函数 |
 | `src/order.ts` | 纯排序规则（`orderByActivity` / `nextMove`），不碰任何服务 |
-| `src/pins.ts` | `PinStore`：置顶列表的内存状态、读盘、过滤、幂等切换、原子写 |
+| `src/pins.ts` | `PinStore`：置顶列表的内存状态、状态接口、过滤、幂等切换、老文件迁移 |
+| `src/spec.ts` | 存储领域声明：`workspace_recency_order` 领域、`pins` 表、`pinnedAt` 记录 schema |
 | `src/route.ts` | 置顶列表的 HTTP 处理函数（不依赖 Cordis，测试直接调） |
 | `src/options.ts` | 配置解析与默认值 |
 | `src/types.ts` | Host 侧用到的最小服务面（不 import DSH 包） |
@@ -19,7 +20,9 @@
 | `src/client/types.ts` | 客户端侧用到的最小服务面 |
 | `test/order.test.ts` | 纯排序规则 |
 | `test/protocol.test.ts` | 共享契约的解析与坏输入 |
-| `test/pins.test.ts` | `PinStore`：路径、读盘、过滤、切换、落盘失败 |
+| `test/pins.test.ts` | `PinStore`：读状态、过滤、切换、写失败、老文件迁移 |
+| `test/spec.test.ts` | 领域声明的名字、版本、布局与记录 schema |
+| `test/fake-pin-state.ts` | 内存假状态与假 `storageDomain`（给上面几份测试用，不是用例） |
 | `test/route.test.ts` | 路由：读、写、幂等、400/405/503 |
 | `test/host.test.ts` | Host 接线：活动排序、启动种子、路由注册、置顶与活动的相互作用 |
 | `test/options.test.ts` | 配置解析 |
@@ -60,6 +63,33 @@ pnpm run check:package  # 打包自检，需要先 build
 `.test.ts` 进类型检查，`.test.mjs` 不进：后者要 `globalThis.window` 或构建产物，硬塞进没有 DOM 的
 工程只会逼出一堆断言。这条分工写在
 [测试跑在一个进程里](../.agents/notes/implemented/testing/2026-11-14-tests-run-in-one-process.md)。
+
+## 运行时依赖
+
+Host 端真的 import 的包只有两个：`@deepseek-ai/dsh-storage-domain`（领域声明要用它的
+`defineDomain()` / `domainTable()`）与 `zod`（记录 schema 必须是 zod 类型）。两者的声明方式不同。
+
+| 包 | 声明 | 版本 | 为什么 |
+| --- | --- | --- | --- |
+| `@deepseek-ai/dsh-storage-domain` | `peerDependencies`（+ `devDependencies` 供类型检查与构建） | `>=0.2.2-rc.3 <0.3.0` | 它本来就在宿主安装的依赖图里，一份就够；跟着宿主升级，不把两份 zod / 两份领域实现带进同一个进程 |
+| `zod` | `dependencies` | `4.6.6`（精确） | `domainTable()` 要的 `ZodType` 必须与 storage-domain 自带那份 zod 同一版本；`^4.6.6` 会装成 4.6.7，两份 zod 的类型名义不兼容，`tsc` 当场报 `ToJSONSchemaParams is not assignable` |
+
+为什么 peer 在 DSH 里解析得到：宿主启动时装了一层包映射（`dsh-app-boot` 的
+`createRuntimeResolution()` 扫描整个安装目录的依赖图，再由 `installRuntimeInterception()` 装进
+Node 的 ESM/CJS 加载器）。这份安装的映射表有 588 条，含
+`@deepseek-ai/dsh-storage-domain@0.2.2-rc.3`、`@deepseek-ai/dsh-storage@0.2.2-rc.3`、
+`@deepseek-ai/cordis@4.1.0`、`zod@4.6.6`。同一生态里的 `dsh-context` 就是这个写法：`@deepseek-ai/*`
+全放 peer，只有 `zod` 放 `dependencies`。
+
+边界与代价：**映射只在 DSH 进程里装**。脱离宿主、用纯 Node 直接 `import lib/index.js` 会
+`MODULE_NOT_FOUND`（`createRequire(...).resolve('@deepseek-ai/dsh-storage-domain')` 在宿主外实测失败）。
+这与本仓库其它 peer 约定一致，`devDependencies` 只为类型检查与构建存在。
+
+`@deepseek-ai/dsh-storage` 与 `@deepseek-ai/cordis` 都不在这里声明：本插件没有 import 它们，它们只是
+`dsh-storage-domain` 的（多层）peer，由宿主那份 `dsh-storage-domain` 自己解析——同一层映射里有它们。
+放进 `dependencies` 也能修好，但会在 profile 里多出副本、改变同 profile 其它插件的解析结果。
+
+理由与实测见[笔记](../.agents/notes/implemented/architecture/2026-11-19-pins-live-in-a-storage-domain.md)。
 
 ## 产物契约
 

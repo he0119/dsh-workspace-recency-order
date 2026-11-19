@@ -1,16 +1,18 @@
 /**
  * Host 端接线：活动事件怎么触发重排、置顶列表路由注册成什么样、两者怎么共用一份顺序。
  *
- * 假上下文只提供本插件真正用到的成员：注册表改内存数组、连接服务记下注册的路由。
+ * 假上下文只提供本插件真正用到的成员：注册表改内存数组、连接服务记下注册的路由、存储领域换成内存
+ * 假实现。同一个 DSH_HOME 复用同一份假存储，用来模拟「宿主重启后置顶还在」。
  */
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 
 import { apply } from '../src/index.ts'
 import type { ConnectionService, HostContext, Logger, SessionController } from '../src/types.ts'
+import { fakePinState, fakeStorageDomain, type FakePinState } from './fake-pin-state.ts'
 
 /** 等一次定时器回调落地（`debounceMs: 0` 时一次 tick 就够）。 */
 const tick = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 25))
@@ -25,6 +27,9 @@ const freshHome = (): string => {
   return dir
 }
 after(() => { rmSync(HOME_ROOT, { recursive: true, force: true }) })
+
+/** 一个 DSH_HOME 对应的置顶存储；同一个 home 的第二次 `apply()` 看到上次写下的记录。 */
+const PIN_STORES = new Map<string, FakePinState>()
 
 /** 注册表里的一个工作区；测试要就地改这个数组。 */
 interface FakeWorkspace {
@@ -52,6 +57,7 @@ interface HostHarness {
   readonly workspaces: FakeWorkspace[]
   readonly routes: Map<string, FakeRoute>
   readonly home: string
+  readonly pins: FakePinState
 }
 
 /**
@@ -73,6 +79,8 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
   const routes = new Map<string, FakeRoute>()
   const home = reuseHome ?? freshHome()
   process.env.DSH_HOME = home
+  const pins = PIN_STORES.get(home) ?? fakePinState()
+  PIN_STORES.set(home, pins)
   const log: Logger = { info: message => infos.push(message), warn: message => warnings.push(message) }
   const logger: HostContext['logger'] = Object.assign((): Logger => log, log)
 
@@ -100,6 +108,7 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
 
   const ctx: HostContext = {
     logger,
+    storageDomain: fakeStorageDomain(pins),
     effect: callback => callback(),
     on: (name, listener) => { listeners.set(name, listener); return () => listeners.delete(name) },
     inject: (deps, callback) => {
@@ -110,7 +119,7 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
     },
     workspaceRegistry: registry,
   }
-  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home }
+  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home, pins }
 }
 
 /** 取一个已注册的监听器；没注册就是测试自己写错了。 */
@@ -355,7 +364,7 @@ test('取消置顶后回到活跃度顺序里该在的位置', async () => {
   assert.deepEqual(ids(host), ['a', 'c', 'b'])
 })
 
-test('置顶列表落盘，重启后从文件读回来并排到开头', async () => {
+test('置顶记录落在存储领域里，重启后读回来并排到开头', async () => {
   const workspaces = [
     { id: 'a', sessionIds: ['sa'] },
     { id: 'b', sessionIds: ['sb'] },
@@ -365,8 +374,8 @@ test('置顶列表落盘，重启后从文件读回来并排到开头', async ()
   apply(first.ctx, { debounceMs: 0, sortOnStart: false })
   await tick()
   await callRoute(first, 'POST', { workspaceId: 'c', pinned: true })
-  const file = join(first.home, 'workspace-recency-order', 'pins.json')
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { version: 1, workspaceIds: ['c'] })
+  assert.deepEqual([...first.pins.records.keys()], ['c'], '置顶要写进 pins 表')
+  assert.equal(typeof first.pins.records.get('c'), 'number')
 
   // 再起一次（同一个 home，注册表顺序是上一次改出来的 c a b）。
   workspaces.splice(0, 3, { id: 'b', sessionIds: ['sb'] }, { id: 'a', sessionIds: ['sa'] }, { id: 'c', sessionIds: ['sc'] })
@@ -386,13 +395,16 @@ test('没有连接服务时仍然排序，只是注册不了置顶列表的路�
   assert.equal(host.routes.size, 0)
 })
 
-test('注册表还没有工作区时，置顶文件不被当成「都失效了」清空', async () => {
+test('注册表还没有工作区时，老文件的置顶被导入、原样留着，文件改名成 .migrated', async () => {
   const host = harness({ workspaces: [] })
   const dir = join(host.home, 'workspace-recency-order')
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'pins.json'), JSON.stringify({ version: 1, workspaceIds: ['later'] }))
+  const file = join(dir, 'pins.json')
+  writeFileSync(file, JSON.stringify({ version: 1, workspaceIds: ['later'] }))
   apply(host.ctx, { debounceMs: 0, sortOnStart: false })
   await tick()
   assert.deepEqual((await callRoute(host, 'GET')).value.pinned, ['later'])
-  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'pins.json'), 'utf8')).workspaceIds, ['later'])
+  assert.deepEqual([...host.pins.records.keys()], ['later'])
+  assert.equal(existsSync(file), false, '导入后旧文件必须改名')
+  assert.equal(existsSync(`${file}.migrated`), true)
 })

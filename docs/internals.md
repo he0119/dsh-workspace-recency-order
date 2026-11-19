@@ -10,15 +10,17 @@
 | --- | --- | --- |
 | 顺序写在哪 | 宿主工作区注册表（`insertBefore`），不是浏览器渲染 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-order-is-the-hosts-workspace-registry.md) |
 | 什么算活动 | 人类消息 + 新会话；子智能体、已归档、未分组不算 | [笔记](../.agents/notes/implemented/feature/2026-11-14-only-human-messages-move-a-workspace.md) |
-| 置顶列表存哪、谁来纠正 | 宿主（`pins.json` + 认证路由 + 幂等命令），页面只读写、不挪顺序 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-pins-live-in-the-host.md) |
+| 置顶列表存哪、谁来纠正 | 宿主（认证路由 + 幂等命令），页面只读写、不挪顺序 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-pins-live-in-the-host.md) |
+| 置顶状态落在哪个设施 | 宿主的存储领域 `workspace_recency_order`（`pins` 表），不再自己写 JSON 文件 | [笔记](../.agents/notes/implemented/architecture/2026-11-19-pins-live-in-a-storage-domain.md) |
 | 客户端产物形状 | 经典脚本，只 require `react` 基线 | [笔记](../.agents/notes/implemented/architecture/2026-11-14-client-artifact-is-a-classic-script.md) |
 | 测试怎么跑 | 进程内 runner，`.test.ts` 进类型检查 | [笔记](../.agents/notes/implemented/testing/2026-11-14-tests-run-in-one-process.md) |
 | 怎么发出去 | npm 包，推 `v*` 标签触发 Publish；产物不进 git，发布时由 `prepare` 现场构建 | [笔记](../.agents/notes/implemented/process/2026-11-15-publish-from-tag.md) |
 
 ## 宿主的接口面
 
-插件**不 import 任何 DSH 包**：用到哪些成员，就在 `src/types.ts` 与 `src/client/types.ts` 里就地
-声明那几行结构类型，产物里因此一个 `require` 都不多。核对权威实现的位置：
+插件用到哪些服务成员，就在 `src/types.ts` 与 `src/client/types.ts` 里就地声明那几行结构类型；
+唯一的例外是领域声明 `src/spec.ts`——`defineDomain()` 与 zod schema 只能真的 import 官方包
+（`@deepseek-ai/dsh-storage-domain` 见 `peerDependencies`、`zod` 见 `dependencies`）。核对位置：
 
 **Host 侧**（`src/index.ts`）：
 
@@ -31,6 +33,8 @@
 - `inject(['sessionController'])`：可选；`list()` 返回全部会话摘要，`signal` 用来中途放弃。
 - `inject(['connection'])`：可选；`connection.fetch.register()` 注册置顶列表的 `GET`/`POST` 路由，
   宿主负责登录校验、Host/Origin 检查与请求体读取方式。
+- `ctx.storageDomain.open(pinDomainSpec)`：置顶记录的持久化；返回的句柄取 `table('pins')`，
+  `close()` 在插件卸载时调用。打开失败不拦插件，读的时候按空列表走。
 
 **Client 侧**（`src/client/index.ts`）：
 

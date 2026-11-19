@@ -2,8 +2,10 @@
  * Host 侧用到的最小服务表面。
  *
  * 本插件不 import 任何 DSH 包：这些接口只描述真正用到的成员，既让类型检查有意义，
- * 也让产物里一个 require 都不多。字段的权威定义在各自的官方包里（见 README「实现」一节）。
+ * 也让产物不必跟着宿主的依赖树走。字段的权威定义在各自的官方包里（见 README「实现」一节）；
+ * 例外是 `src/spec.ts`——领域声明必须用官方 `defineDomain()` 与 zod 构造，那一份是真的 import。
  */
+import type { PinTable } from './pins.ts'
 
 /** 注册表里的一个工作区。 */
 export interface WorkspaceRow {
@@ -50,6 +52,21 @@ export interface ConnectionService {
   }
 }
 
+/** `ctx.storageDomain.open()` 返回的领域句柄里本插件用到的部分。 */
+export interface PinDomain {
+  /** 领域名，仅用于诊断。 */
+  readonly name: string
+  /** 取一张已声明的表。 */
+  table(name: string): PinTable
+  /** 释放这个领域；插件卸载时调用。 */
+  close(): Promise<void>
+}
+
+/** `ctx.storageDomain` 用到的部分：打开一份声明好的领域（schema 校验与落盘由宿主负责）。 */
+export interface StorageDomainService {
+  open(spec: unknown): Promise<PinDomain>
+}
+
 /** Cordis 日志器面。 */
 export interface Logger {
   info(message: string): void
@@ -65,6 +82,8 @@ export interface OptionalServices {
 /** Cordis 插件上下文面（只列本插件用到的成员）。 */
 export interface HostContext {
   readonly workspaceRegistry: WorkspaceRegistry
+  /** 宿主的领域存储：置顶列表就存在这里。服务不在时插件不激活（见 `src/index.ts` 的 `inject`）。 */
+  readonly storageDomain: StorageDomainService
   readonly logger: Logger & ((name?: string) => Logger)
   effect(callback: () => () => void, label?: string): unknown
   on(event: string, listener: (...args: any[]) => void): unknown
