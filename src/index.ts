@@ -8,6 +8,9 @@
  * 顺序只有一个写手，就是这个文件。Web Client 不碰顺序，只通过 `GET/POST /api/workspace-recency/pins`
  * 读写置顶列表；置顶项因此不会在活动之后被挤下去、再被页面弹回来。
  *
+ * 置顶列表存在宿主的存储领域里（`src/spec.ts` 的 `workspace_recency_order` 领域，`pins` 表），
+ * 不再自己拼路径写 JSON；老版本的 `pins.json` 在第一次读取时一次性导入。
+ *
  * 写盘方式是最小步：每一轮排序都重新读注册表，只做一次「把某个工作区移到某处」的移动，于是并发改动
  * （用户拖动、别的工作区新建会话）不会让本地快照越走越偏。
  */
@@ -15,13 +18,17 @@ import { homedir } from 'node:os'
 
 import { orderByActivity, nextMove } from './order.ts'
 import { readOptions } from './options.ts'
-import { PinStore, pinsPath } from './pins.ts'
+import { PinStore, pinStateFromTable, pinsPath } from './pins.ts'
 import { PIN_ROUTE } from './protocol.ts'
 import { createPinRoute } from './route.ts'
+import { PIN_TABLE_NAME, pinDomainSpec } from './spec.ts'
 import type { HostContext, SessionSummary, WorkspaceRow } from './types.ts'
 
-/** 只强依赖工作区注册表；会话控制器用于启动排序，连接服务用于置顶列表的路由。 */
-export const inject: readonly string[] = ['workspaceRegistry']
+/**
+ * 强依赖工作区注册表与宿主存储：没有注册表就排不了序，没有存储就记不住置顶，两样都是插件正常工作
+ * 的前提，所以服务不在时干脆不激活（Cordis 会等它出现）。
+ */
+export const inject: readonly string[] = ['workspaceRegistry', 'storageDomain']
 
 /**
  * 插件入口。
@@ -53,12 +60,24 @@ export function apply(ctx: HostContext, config?: unknown): void {
     return result
   }
 
-  /** 置顶列表：内存里一份，落盘在 `<DSH_HOME>/workspace-recency-order/pins.json`。 */
+  /**
+   * 置顶列表：记录落在宿主的存储领域 `workspace_recency_order` 的 `pins` 表里。
+   *
+   * 领域是异步打开的。打开失败不拦插件：读的时候 `PinStore` 会留一条 `warn` 并按空列表走，排序
+   * 照常进行（只是这一轮没有置顶项）。
+   */
+  const opening = ctx.storageDomain.open(pinDomainSpec)
+  // 打开失败由第一次读写时的告警呈现；先挂一个处理器，免得没人等它时冒出「未处理的拒绝」。
+  opening.catch(() => {})
   const pins = new PinStore({
-    file: pinsPath(process.env, homedir()),
+    state: pinStateFromTable(opening.then(domain => domain.table(PIN_TABLE_NAME))),
+    legacyFile: pinsPath(process.env, homedir()),
     knownIds: () => new Set(registry.list().map(workspace => workspace.id)),
     warn,
   })
+  ctx.effect(() => () => {
+    void opening.then(domain => domain.close(), () => {})
+  }, 'workspace-recency-order: close the pin domain')
 
   /**
    * 记住一个会话的活动时刻。
