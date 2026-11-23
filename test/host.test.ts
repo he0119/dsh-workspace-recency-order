@@ -1,16 +1,18 @@
 /**
  * Host 端接线：活动事件怎么触发重排、置顶列表路由注册成什么样、两者怎么共用一份顺序。
  *
- * 假上下文只提供本插件真正用到的成员：注册表改内存数组、连接服务记下注册的路由。
+ * 假上下文只提供本插件真正用到的成员：注册表改内存数组、连接服务记下注册的路由、存储领域换成内存
+ * 假实现。同一个 DSH_HOME 复用同一份假存储，用来模拟「宿主重启后置顶还在」。
  */
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
 
 import { apply } from '../src/index.ts'
 import type { ConnectionService, HostContext, Logger, SessionController } from '../src/types.ts'
+import { fakePinState, fakePinTable, fakeStorageDomain, type FakePinState } from './fake-pin-state.ts'
 
 /** 等一次定时器回调落地（`debounceMs: 0` 时一次 tick 就够）。 */
 const tick = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 25))
@@ -25,6 +27,9 @@ const freshHome = (): string => {
   return dir
 }
 after(() => { rmSync(HOME_ROOT, { recursive: true, force: true }) })
+
+/** 一个 DSH_HOME 对应的置顶存储；同一个 home 的第二次 `apply()` 看到上次写下的记录。 */
+const PIN_STORES = new Map<string, FakePinState>()
 
 /** 注册表里的一个工作区；测试要就地改这个数组。 */
 interface FakeWorkspace {
@@ -42,6 +47,12 @@ interface FakeRoute {
   readonly fetch: (request: Request) => Promise<Response>
 }
 
+/** 一个登记的清理函数，带标签方便按用途找。 */
+interface FakeDisposer {
+  readonly label: string
+  readonly dispose: () => unknown
+}
+
 /** 假上下文的可读面。 */
 interface HostHarness {
   readonly ctx: HostContext
@@ -52,19 +63,24 @@ interface HostHarness {
   readonly workspaces: FakeWorkspace[]
   readonly routes: Map<string, FakeRoute>
   readonly home: string
+  readonly pins: FakePinState
+  readonly disposers: readonly FakeDisposer[]
 }
 
 /**
  * 搭一个插件上下文。
  * @param options - `workspaces` 可变数组；可选 `sessions` 会话控制器、`archived` 归档集合、
- *   `withConnection` 是否提供连接服务、`home` 复用已有的 DSH_HOME。
+ *   `withConnection` 是否提供连接服务、`home` 复用已有的 DSH_HOME、`storageDomain` 换一份存储。
  */
-function harness({ workspaces, sessions, archived = [], withConnection = true, home: reuseHome }: {
+function harness({
+  workspaces, sessions, archived = [], withConnection = true, home: reuseHome, storageDomain,
+}: {
   readonly workspaces: FakeWorkspace[]
   readonly sessions?: SessionController
   readonly archived?: readonly string[]
   readonly withConnection?: boolean
   readonly home?: string
+  readonly storageDomain?: HostContext['storageDomain']
 }): HostHarness {
   const moves: Move[] = []
   const listeners = new Map<string, (...args: any[]) => void>()
@@ -73,8 +89,16 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
   const routes = new Map<string, FakeRoute>()
   const home = reuseHome ?? freshHome()
   process.env.DSH_HOME = home
+  const pins = PIN_STORES.get(home) ?? fakePinState()
+  PIN_STORES.set(home, pins)
   const log: Logger = { info: message => infos.push(message), warn: message => warnings.push(message) }
   const logger: HostContext['logger'] = Object.assign((): Logger => log, log)
+  const disposers: FakeDisposer[] = []
+  const effect: HostContext['effect'] = (callback, label) => {
+    const dispose = callback()
+    if (typeof dispose === 'function') disposers.push({ label: label ?? '', dispose })
+    return dispose
+  }
 
   const registry: HostContext['workspaceRegistry'] = {
     archivedSessionIds: archived,
@@ -100,7 +124,8 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
 
   const ctx: HostContext = {
     logger,
-    effect: callback => callback(),
+    storageDomain: storageDomain ?? fakeStorageDomain(pins),
+    effect,
     on: (name, listener) => { listeners.set(name, listener); return () => listeners.delete(name) },
     inject: (deps, callback) => {
       const extra: Record<string, unknown> = {}
@@ -110,7 +135,7 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
     },
     workspaceRegistry: registry,
   }
-  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home }
+  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home, pins, disposers }
 }
 
 /** 取一个已注册的监听器；没注册就是测试自己写错了。 */
@@ -355,7 +380,7 @@ test('取消置顶后回到活跃度顺序里该在的位置', async () => {
   assert.deepEqual(ids(host), ['a', 'c', 'b'])
 })
 
-test('置顶列表落盘，重启后从文件读回来并排到开头', async () => {
+test('置顶记录落在存储领域里，重启后读回来并排到开头', async () => {
   const workspaces = [
     { id: 'a', sessionIds: ['sa'] },
     { id: 'b', sessionIds: ['sb'] },
@@ -365,8 +390,8 @@ test('置顶列表落盘，重启后从文件读回来并排到开头', async ()
   apply(first.ctx, { debounceMs: 0, sortOnStart: false })
   await tick()
   await callRoute(first, 'POST', { workspaceId: 'c', pinned: true })
-  const file = join(first.home, 'workspace-recency-order', 'pins.json')
-  assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), { version: 1, workspaceIds: ['c'] })
+  assert.deepEqual([...first.pins.records.keys()], ['c'], '置顶要写进 pins 表')
+  assert.equal(typeof first.pins.records.get('c'), 'number')
 
   // 再起一次（同一个 home，注册表顺序是上一次改出来的 c a b）。
   workspaces.splice(0, 3, { id: 'b', sessionIds: ['sb'] }, { id: 'a', sessionIds: ['sa'] }, { id: 'c', sessionIds: ['sc'] })
@@ -386,13 +411,71 @@ test('没有连接服务时仍然排序，只是注册不了置顶列表的路�
   assert.equal(host.routes.size, 0)
 })
 
-test('注册表还没有工作区时，置顶文件不被当成「都失效了」清空', async () => {
+test('注册表还没有工作区时，老文件的置顶被导入、原样留着，文件改名成 .migrated', async () => {
   const host = harness({ workspaces: [] })
   const dir = join(host.home, 'workspace-recency-order')
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'pins.json'), JSON.stringify({ version: 1, workspaceIds: ['later'] }))
+  const file = join(dir, 'pins.json')
+  writeFileSync(file, JSON.stringify({ version: 1, workspaceIds: ['later'] }))
   apply(host.ctx, { debounceMs: 0, sortOnStart: false })
   await tick()
   assert.deepEqual((await callRoute(host, 'GET')).value.pinned, ['later'])
-  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'pins.json'), 'utf8')).workspaceIds, ['later'])
+  assert.deepEqual([...host.pins.records.keys()], ['later'])
+  assert.equal(existsSync(file), false, '导入后旧文件必须改名')
+  assert.equal(existsSync(`${file}.migrated`), true)
+})
+
+test('存储领域打不开时照常排序，且不会留下未处理的拒绝', async () => {
+  // 宿主的 fail-loud（dsh-app-boot）把未处理的拒绝变成 exit(1)，所以这里既要求插件不崩，也要求
+  // open() 派生出的 promise 当场有人接。
+  const rejections: unknown[] = []
+  const onRejection = (reason: unknown): void => { rejections.push(reason) }
+  process.on('unhandledRejection', onRejection)
+  try {
+    const host = harness({
+      workspaces: [{ id: 'a', sessionIds: ['sa'] }, { id: 'b', sessionIds: ['sb'] }],
+      storageDomain: { open: () => Promise.reject(new Error('already open')) },
+    })
+    apply(host.ctx, { debounceMs: 0, sortOnStart: false })
+    listener(host, 'api-session/activity')('sb', 1000)
+    await tick()
+    await tick()
+    assert.deepEqual(ids(host), ['b', 'a'], '没有置顶列表也要照常按活动排序')
+    assert.ok(host.warnings.some(message => message.includes('cannot read the pin list')))
+    assert.deepEqual(rejections, [], 'open() 的拒绝必须当场被接住')
+  } finally {
+    process.off('unhandledRejection', onRejection)
+  }
+})
+
+test('卸载时清理函数返回 promise，宿主能等到领域关闭', async () => {
+  const state = fakePinState()
+  let closed = false
+  const host = harness({
+    workspaces: [],
+    storageDomain: {
+      async open() {
+        return {
+          name: 'workspace_recency_order',
+          table: (name: string) => {
+            if (name !== 'pins') throw new Error(`unexpected table: ${name}`)
+            return fakePinTable(state)
+          },
+          close: async () => {
+            await new Promise(resolve => setTimeout(resolve, 5))
+            closed = true
+          },
+        }
+      },
+    },
+  })
+  apply(host.ctx, { debounceMs: 0, sortOnStart: false })
+  await tick()
+  const disposer = host.disposers.find(entry => entry.label.includes('close the pin domain'))
+  assert.ok(disposer, '没有注册关闭存储领域的清理函数')
+  const pending = disposer.dispose()
+  assert.ok(pending instanceof Promise, '清理函数必须返回 promise，宿主才会等它')
+  assert.equal(closed, false)
+  await pending
+  assert.equal(closed, true)
 })

@@ -2,8 +2,11 @@
 #
 # 本仓库只有一个包，所以这里**没有** `packages:` 段——这个文件只承载设置。
 #
-# 本插件不依赖任何 `@deepseek-ai/*` 包：Host 端只用宿主提供的服务面，客户端产物除了浏览器
-# 模块表里的 `react` / `react/jsx-runtime` 什么都不 require（见 docs/development.md）。因此
+# Host 端真的 import 两个包：`@deepseek-ai/dsh-storage-domain`（领域声明用它的 `defineDomain()`）与
+# `zod`（记录 schema）。前者放 `peerDependencies`：它属于宿主安装本身，宿主启动时把整个安装目录的依赖
+# 图装成包映射，插件 import 到的是宿主那一份，跟宿主一起升级；后者放 `dependencies` 并锁精确版本，
+# 因为 `domainTable()` 的 `ZodType` 必须与 storage-domain 自带那份 zod 同版本。理由与实测见
+# docs/development.md 的「运行时依赖」。客户端产物仍然只 require `react` / `react/jsx-runtime`。
 # pnpm 默认的 isolated 依赖布局在这台机器上是够用的，不需要 node-linker 之类的变通。
 #
 # package.json 里的 `packageManager` 让各台机器用同一个 pnpm 主版本；pnpm 12 会顺手把它自己

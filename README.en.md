@@ -58,7 +58,7 @@ A workspace row's «…» menu (or a right click on the row) gains one item:
 Notes on pinning:
 
 - The order has **exactly one writer: the Host**. Clicking pin only tells the Host which workspaces are pinned (`POST /api/workspace-recency/pins`), and the Host keeps them in front. Pins therefore never get pushed down and bounced back after an activity, and they keep working while the page is closed.
-- The pin list lives on the Host: `<DSH_HOME>/workspace-recency-order/pins.json` (default `~/.dsh/workspace-recency-order/pins.json`). Every browser on this machine sees the same list and re-reads it when you return to the page.
+- The pin list lives on the Host: the `pins` table of the `workspace_recency_order` storage domain, stored at `<DSH_HOME>/storages/workspace_recency_order.json` (default `~/.dsh/storages/workspace_recency_order.json`). Every browser on this machine sees the same list and re-reads it when you return to the page; an old `pins.json` is imported once at startup and renamed to `pins.json.migrated`.
 - Pins only occupy the leading group and never push the workspace you just used further down: activity in another workspace places it below the group, and the group itself does not move.
 - A refused write reports one failure and then trusts the Host's answer; nothing pretends to have worked.
 
@@ -80,7 +80,7 @@ An unknown key or unusable value logs a `warn` on the Host and falls back to the
 - Ordering rewrites the **durable Host order**: a position you drag by hand is overwritten by the next message or a restart, including inside the pinned group (which is ordered by recent messages). Turn the plugin off in **Settings → Plugins** to keep manual control.
 - Only the default **Group by workspace** view is covered; in **Workspace tree** a child workspace stays nested under its parent, so a pinned child leads only among its siblings.
 - Each activity triggers at most one sort; every move is one registry write (about 67 KB of JSON on this machine). Nothing is written when the order already matches.
-- The pin list is not session data: it lives in the `pins.json` above, follows this machine's `DSH_HOME`, and deleting that file clears every pin.
+- The pin list is not session data: it lives in the storage-domain file above, follows this machine's `DSH_HOME`, and deleting that file clears every pin.
 
 ## Documents
 

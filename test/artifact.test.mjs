@@ -31,17 +31,29 @@ const MISSING = existsSync(HOST_ENTRY) && existsSync(CLIENT_ENTRY)
 /** 包名：客户端产物的模块 id 与它一致，`require` 也按它分发。 */
 const MANIFEST = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 
-/** 假上下文：Host 端 apply 只用到日志器、effect、on 与注册表。 */
+/** 假上下文：Host 端 apply 只用到日志器、effect、on、注册表与存储领域。 */
 function hostContext() {
   const listeners = new Map()
   const log = { info: () => {}, warn: () => {} }
+  // 假领域：只实现 apply 会用到的 `table('pins')` 与 `close()`，记录放内存里。
+  const records = new Map()
+  const table = {
+    entries: () => records.entries(),
+    put: async (key, value) => { records.set(key, value) },
+    delete: async key => records.delete(key),
+  }
+  const storageDomain = {
+    open: async () => ({ name: 'workspace_recency_order', table: () => table, close: async () => {} }),
+  }
   return {
     listeners,
+    records,
     ctx: {
       logger: Object.assign(() => log, log),
       effect: callback => callback(),
       on: (name, listener) => { listeners.set(name, listener); return () => listeners.delete(name) },
       inject: () => {},
+      storageDomain,
       workspaceRegistry: {
         archivedSessionIds: [],
         list: () => [{ id: 'a', sessionIds: ['sa'] }, { id: 'b', sessionIds: ['sb'] }],
@@ -55,6 +67,7 @@ test('Host 产物导出 apply / inject，并在假上下文里跑得起来', { s
   const entry = await import(pathToFileURL(HOST_ENTRY).href)
   assert.equal(typeof entry.apply, 'function')
   assert.ok(Array.isArray(entry.inject) && entry.inject.includes('workspaceRegistry'))
+  assert.ok(entry.inject.includes('storageDomain'), 'inject 少了 storageDomain，插件会先于存储激活')
 
   const host = hostContext()
   entry.apply(host.ctx, { debounceMs: 0, sortOnStart: false })
