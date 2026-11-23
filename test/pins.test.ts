@@ -93,6 +93,22 @@ test('读不出来当空列表并告警', async () => {
   assert.ok(warnings.some(message => message.includes('cannot read the pin list')))
 })
 
+test('读不出来时，有老文件也只告警一次', async () => {
+  const home = legacyHome({ version: 1, workspaceIds: ['a'] })
+  try {
+    const state = fakePinState()
+    state.failRead = new Error('domain is closed')
+    const { instance, warnings } = store(state, { legacyFile: home.file })
+    await instance.load()
+    assert.deepEqual(instance.ids, [])
+    assert.equal(warnings.length, 1, `只该有一条告警，实际：${warnings.join(' | ')}`)
+    assert.ok(warnings[0]?.includes('cannot read the pin list'))
+    assert.equal(existsSync(home.file), true, '读不出来就根本没迁移，旧文件不能动')
+  } finally {
+    home.done()
+  }
+})
+
 test('load 只读一次状态：之后再改记录也不影响内存', async () => {
   const state = fakePinState([{ workspaceId: 'a', pinnedAt: 1 }])
   const { instance } = store(state)

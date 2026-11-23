@@ -64,20 +64,30 @@ export function apply(ctx: HostContext, config?: unknown): void {
    * 置顶列表：记录落在宿主的存储领域 `workspace_recency_order` 的 `pins` 表里。
    *
    * 领域是异步打开的。打开失败不拦插件：读的时候 `PinStore` 会留一条 `warn` 并按空列表走，排序
-   * 照常进行（只是这一轮没有置顶项）。
+   * 照常进行（这个插件实例在进程重启或重新加载插件之前没有置顶项，因为 `PinStore.load()` 只读一次）。
    */
   const opening = ctx.storageDomain.open(pinDomainSpec)
-  // 打开失败由第一次读写时的告警呈现；先挂一个处理器，免得没人等它时冒出「未处理的拒绝」。
+  /** `pins` 表的句柄；第一次读写时才有人等它，失败由 `PinStore` 统一告警。 */
+  const table = opening.then(domain => domain.table(PIN_TABLE_NAME))
+  // 两个派生 promise 的拒绝都必须立刻有人接：宿主（`dsh-app-boot` 的 fail-loud）把未处理的拒绝
+  // 当成致命错误直接退出进程，而真正的错误在第一次读写时由 `PinStore` 的 `warn` 呈现。
   opening.catch(() => {})
+  table.catch(() => {})
   const pins = new PinStore({
-    state: pinStateFromTable(opening.then(domain => domain.table(PIN_TABLE_NAME))),
+    state: pinStateFromTable(table),
     legacyFile: pinsPath(process.env, homedir()),
     knownIds: () => new Set(registry.list().map(workspace => workspace.id)),
     warn,
   })
-  ctx.effect(() => () => {
-    void opening.then(domain => domain.close(), () => {})
-  }, 'workspace-recency-order: close the pin domain')
+  // 清理函数返回 promise：宿主卸下插件时会等它。不返回的话关闭在后台跑，紧接着重新加载插件会撞上
+  // 同一个领域名，得到 `already-open`。
+  ctx.effect(
+    () => () => opening.then(
+      domain => domain.close().catch(error => warn(`cannot close the pin domain: ${String(error)}`)),
+      () => {},
+    ),
+    'workspace-recency-order: close the pin domain',
+  )
 
   /**
    * 记住一个会话的活动时刻。

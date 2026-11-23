@@ -12,7 +12,7 @@ import { after, test } from 'node:test'
 
 import { apply } from '../src/index.ts'
 import type { ConnectionService, HostContext, Logger, SessionController } from '../src/types.ts'
-import { fakePinState, fakeStorageDomain, type FakePinState } from './fake-pin-state.ts'
+import { fakePinState, fakePinTable, fakeStorageDomain, type FakePinState } from './fake-pin-state.ts'
 
 /** 等一次定时器回调落地（`debounceMs: 0` 时一次 tick 就够）。 */
 const tick = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 25))
@@ -47,6 +47,12 @@ interface FakeRoute {
   readonly fetch: (request: Request) => Promise<Response>
 }
 
+/** 一个登记的清理函数，带标签方便按用途找。 */
+interface FakeDisposer {
+  readonly label: string
+  readonly dispose: () => unknown
+}
+
 /** 假上下文的可读面。 */
 interface HostHarness {
   readonly ctx: HostContext
@@ -58,19 +64,23 @@ interface HostHarness {
   readonly routes: Map<string, FakeRoute>
   readonly home: string
   readonly pins: FakePinState
+  readonly disposers: readonly FakeDisposer[]
 }
 
 /**
  * 搭一个插件上下文。
  * @param options - `workspaces` 可变数组；可选 `sessions` 会话控制器、`archived` 归档集合、
- *   `withConnection` 是否提供连接服务、`home` 复用已有的 DSH_HOME。
+ *   `withConnection` 是否提供连接服务、`home` 复用已有的 DSH_HOME、`storageDomain` 换一份存储。
  */
-function harness({ workspaces, sessions, archived = [], withConnection = true, home: reuseHome }: {
+function harness({
+  workspaces, sessions, archived = [], withConnection = true, home: reuseHome, storageDomain,
+}: {
   readonly workspaces: FakeWorkspace[]
   readonly sessions?: SessionController
   readonly archived?: readonly string[]
   readonly withConnection?: boolean
   readonly home?: string
+  readonly storageDomain?: HostContext['storageDomain']
 }): HostHarness {
   const moves: Move[] = []
   const listeners = new Map<string, (...args: any[]) => void>()
@@ -83,6 +93,12 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
   PIN_STORES.set(home, pins)
   const log: Logger = { info: message => infos.push(message), warn: message => warnings.push(message) }
   const logger: HostContext['logger'] = Object.assign((): Logger => log, log)
+  const disposers: FakeDisposer[] = []
+  const effect: HostContext['effect'] = (callback, label) => {
+    const dispose = callback()
+    if (typeof dispose === 'function') disposers.push({ label: label ?? '', dispose })
+    return dispose
+  }
 
   const registry: HostContext['workspaceRegistry'] = {
     archivedSessionIds: archived,
@@ -108,8 +124,8 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
 
   const ctx: HostContext = {
     logger,
-    storageDomain: fakeStorageDomain(pins),
-    effect: callback => callback(),
+    storageDomain: storageDomain ?? fakeStorageDomain(pins),
+    effect,
     on: (name, listener) => { listeners.set(name, listener); return () => listeners.delete(name) },
     inject: (deps, callback) => {
       const extra: Record<string, unknown> = {}
@@ -119,7 +135,7 @@ function harness({ workspaces, sessions, archived = [], withConnection = true, h
     },
     workspaceRegistry: registry,
   }
-  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home, pins }
+  return { ctx, moves, listeners, warnings, infos, workspaces, routes, home, pins, disposers }
 }
 
 /** 取一个已注册的监听器；没注册就是测试自己写错了。 */
@@ -407,4 +423,59 @@ test('注册表还没有工作区时，老文件的置顶被导入、原样留�
   assert.deepEqual([...host.pins.records.keys()], ['later'])
   assert.equal(existsSync(file), false, '导入后旧文件必须改名')
   assert.equal(existsSync(`${file}.migrated`), true)
+})
+
+test('存储领域打不开时照常排序，且不会留下未处理的拒绝', async () => {
+  // 宿主的 fail-loud（dsh-app-boot）把未处理的拒绝变成 exit(1)，所以这里既要求插件不崩，也要求
+  // open() 派生出的 promise 当场有人接。
+  const rejections: unknown[] = []
+  const onRejection = (reason: unknown): void => { rejections.push(reason) }
+  process.on('unhandledRejection', onRejection)
+  try {
+    const host = harness({
+      workspaces: [{ id: 'a', sessionIds: ['sa'] }, { id: 'b', sessionIds: ['sb'] }],
+      storageDomain: { open: () => Promise.reject(new Error('already open')) },
+    })
+    apply(host.ctx, { debounceMs: 0, sortOnStart: false })
+    listener(host, 'api-session/activity')('sb', 1000)
+    await tick()
+    await tick()
+    assert.deepEqual(ids(host), ['b', 'a'], '没有置顶列表也要照常按活动排序')
+    assert.ok(host.warnings.some(message => message.includes('cannot read the pin list')))
+    assert.deepEqual(rejections, [], 'open() 的拒绝必须当场被接住')
+  } finally {
+    process.off('unhandledRejection', onRejection)
+  }
+})
+
+test('卸载时清理函数返回 promise，宿主能等到领域关闭', async () => {
+  const state = fakePinState()
+  let closed = false
+  const host = harness({
+    workspaces: [],
+    storageDomain: {
+      async open() {
+        return {
+          name: 'workspace_recency_order',
+          table: (name: string) => {
+            if (name !== 'pins') throw new Error(`unexpected table: ${name}`)
+            return fakePinTable(state)
+          },
+          close: async () => {
+            await new Promise(resolve => setTimeout(resolve, 5))
+            closed = true
+          },
+        }
+      },
+    },
+  })
+  apply(host.ctx, { debounceMs: 0, sortOnStart: false })
+  await tick()
+  const disposer = host.disposers.find(entry => entry.label.includes('close the pin domain'))
+  assert.ok(disposer, '没有注册关闭存储领域的清理函数')
+  const pending = disposer.dispose()
+  assert.ok(pending instanceof Promise, '清理函数必须返回 promise，宿主才会等它')
+  assert.equal(closed, false)
+  await pending
+  assert.equal(closed, true)
 })

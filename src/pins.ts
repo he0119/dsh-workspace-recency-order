@@ -192,22 +192,39 @@ export class PinStore {
     return kept.sort(byPinnedAt)
   }
 
-  /** 读状态；读不出来当空列表，形状不对的条目由 `#sanitize` 丢掉并顺手写回干净的那份。 */
+  /**
+   * 读状态；读不出来当空列表，形状不对的条目由 `#sanitize` 丢掉并顺手写回干净的那份。
+   *
+   * 老文件迁移只在存储里一条记录都没有时尝试；读不出来只留一条 `warn`，同一个错误不再报第二次。
+   */
   async #read(): Promise<void> {
+    let stored = await this.#readState('cannot read the pin list')
+    if (stored === undefined) return
     const legacyFile = this.#options.legacyFile
-    if (legacyFile !== undefined) {
-      await migrateLegacyPins({ file: legacyFile, state: this.#options.state, warn: this.#options.warn })
-    }
-    let stored: readonly StoredPin[]
-    try {
-      stored = await this.#options.state.read()
-    } catch (error) {
-      this.#options.warn(`cannot read the pin list: ${String(error)}`)
-      return
+    if (legacyFile !== undefined && stored.length === 0) {
+      const imported = await migrateLegacyPins({
+        file: legacyFile,
+        state: this.#options.state,
+        warn: this.#options.warn,
+      })
+      if (imported) {
+        stored = await this.#readState('cannot read the pin list after migrating')
+        if (stored === undefined) return
+      }
     }
     const next = this.#sanitize(stored)
     this.#pins = next
     if (!samePins(stored, next)) await this.#persist(stored, next)
+  }
+
+  /** 读一次存储；失败时用给定前缀告警并返回 `undefined`。 */
+  async #readState(message: string): Promise<readonly StoredPin[] | undefined> {
+    try {
+      return await this.#options.state.read()
+    } catch (error) {
+      this.#options.warn(`${message}: ${String(error)}`)
+      return undefined
+    }
   }
 
   /** 只写变化：新增或改了时刻的记录 `put`，没了的记录删掉；失败只告警。 */
@@ -243,15 +260,16 @@ export interface PinMigrationOptions {
 /**
  * 把老版本的 `pins.json` 导入置顶领域。
  *
- * 规则：文件还在、形状认识、领域里一条记录都没有，才按文件里的先后导入（`pinnedAt` 用 1、2、3……
- * 递增序号，够用来还原顺序）；导入成功后把文件改名成 `pins.json.migrated`。领域里已经有记录时什么
- * 都不做——迁移只发生一次，旧文件原地留着给用户核对。
+ * 调用方负责只在存储里一条记录都没有时调用它——迁移只发生一次，领域里已经有记录时旧文件原地留着给
+ * 用户核对，不再导入。文件还在、形状认识就按文件里的先后导入（`pinnedAt` 用 1、2、3……递增序号，
+ * 够用来还原顺序）；导入成功后把文件改名成 `pins.json.migrated`。
  *
  * 整个函数不会抛：读不出来、JSON 坏掉、形状不认识、写不进去都只留一条 `warn`。写了一半失败时尽力
  * 撤回已写的记录，好让下次启动能从头再试。
  * @param options - 老文件位置、状态接口与告警回调。
+ * @returns 真的导入了记录时 `true`；没有老文件、读不懂或写失败都是 `false`。
  */
-export async function migrateLegacyPins(options: PinMigrationOptions): Promise<void> {
+export async function migrateLegacyPins(options: PinMigrationOptions): Promise<boolean> {
   const { file, state, warn } = options
   let raw: string
   try {
@@ -261,7 +279,7 @@ export async function migrateLegacyPins(options: PinMigrationOptions): Promise<v
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       warn(`cannot read the old pin list: ${String(error)}`)
     }
-    return
+    return false
   }
 
   let parsed: unknown
@@ -269,22 +287,13 @@ export async function migrateLegacyPins(options: PinMigrationOptions): Promise<v
     parsed = JSON.parse(raw)
   } catch (error) {
     warn(`the old pin list is not valid JSON, leaving it in place: ${String(error)}`)
-    return
+    return false
   }
   const ids = legacyIds(parsed)
   if (ids === undefined) {
     warn('the old pin list has an unexpected shape, leaving it in place')
-    return
+    return false
   }
-
-  let existing: readonly StoredPin[]
-  try {
-    existing = await state.read()
-  } catch (error) {
-    warn(`cannot check the pin domain before migrating: ${String(error)}`)
-    return
-  }
-  if (existing.length > 0) return
 
   const written: string[] = []
   try {
@@ -295,7 +304,7 @@ export async function migrateLegacyPins(options: PinMigrationOptions): Promise<v
   } catch (error) {
     warn(`cannot migrate the old pin list: ${String(error)}`)
     for (const workspaceId of written) await state.remove(workspaceId).catch(() => {})
-    return
+    return false
   }
 
   try {
@@ -304,6 +313,7 @@ export async function migrateLegacyPins(options: PinMigrationOptions): Promise<v
     // 数据已经导入过了：下次启动领域非空，不会再导入一遍，旧文件留着不影响正确性。
     warn(`cannot rename the old pin list after importing it: ${String(error)}`)
   }
+  return true
 }
 
 /** 老文件的形状：`{ version: 1, workspaceIds: [...] }`；不认识的形状返回 `undefined`。 */
